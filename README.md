@@ -29,6 +29,7 @@ L'application tient dans un seul fichier, `index.html`, qui fonctionne **hors li
   - double-clic sur une table : la modifier ;
   - glisser d'une table à une autre : nouvelle référence, préremplie avec la clé primaire visée et la colonne `<table>_id` si elle existe ;
   - Maj + glisser : déplacer une carte.
+- **Thème clair ou sombre** : par défaut celui du système ; le bouton à gauche du cadenas passe de *système* à *clair* puis *sombre*. Le choix est retenu par le navigateur.
 
 ## Raccourcis
 

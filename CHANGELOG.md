@@ -5,6 +5,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 ## [Non publié]
 
 ### Ajouté
+- Choix du thème dans le bandeau : celui du système (par défaut), clair ou sombre, retenu par le navigateur.
 - Bouton « Éclater » dans la barre d'outils du graphe : cartes plus espacées, rangées pour limiter les croisements, et flèches courbées pour ne plus passer derrière une carte, sur toutes les scènes. Actif par défaut ; un clic revient à la mise en page compacte.
 - Vue graphe : plan d'ensemble par groupe de tables, focus sur une table (lecture de gauche à droite, clés étrangères à gauche, tables référencées à droite), focus sur un groupe, constellations par groupe pour un schéma. Cartes en trois niveaux de détail, traits colorés par cardinalité, références réflexives en boucle, filtres, légende, recherche, zoom et transitions animées.
 - Édition des tables (colonnes comprises), des références et des groupes, depuis le panneau de détail ou par gestes dans le graphe ; renommages répercutés sur les références ; annulation (Ctrl+Z) des 20 dernières modifications.

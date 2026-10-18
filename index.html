@@ -19,8 +19,18 @@
   --f-mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, Menlo, monospace;
   color-scheme: light;
 }
+/* Thème sombre : choisi dans le bandeau (data-theme="dark"), ou celui du système tant que l'utilisateur n'a pas
+   imposé le clair. Les deux blocs portent les mêmes valeurs. */
+:root[data-theme="dark"] {
+  --bg: #0d1117; --surface: #151b23; --surface-2: #1c232c; --ink: #e6edf3; --muted: #8d96a0; --line: #2d353f; --line-2: #222a33;
+  --accent: #4493f8; --accent-ink: #051325; --accent-soft: #11294a;
+  --canvas: #0f141a; --grid: rgba(255, 255, 255, .07);
+  --ok: #3fb950; --warn: #d29922; --warn-soft: #2e2509; --err: #f85149; --err-soft: #3a1717;
+  --rel-n1: #8b9bb0; --rel-11: #3fb950; --rel-nn: #a371f7;
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
+  :root:not([data-theme="light"]) {
     --bg: #0d1117; --surface: #151b23; --surface-2: #1c232c; --ink: #e6edf3; --muted: #8d96a0; --line: #2d353f; --line-2: #222a33;
     --accent: #4493f8; --accent-ink: #051325; --accent-soft: #11294a;
     --canvas: #0f141a; --grid: rgba(255, 255, 255, .07);
@@ -49,7 +59,9 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .btn.small { height: 24px; padding: 0 8px; font-size: 12px; }
 .btn.danger { color: var(--err); }
 .btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
-.btn.lock svg { display: block; }
+.btn.lock svg, .btn.theme svg { display: block; }
+.btn.theme { padding: 0 7px; color: var(--muted); }
+.btn.theme:hover { color: var(--ink); }
 .btn.lock.on { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); font-weight: 600; }
 .icon { width: 22px; height: 22px; border: 0; background: none; border-radius: 4px; cursor: pointer; color: var(--muted); display: inline-grid; place-items: center; padding: 0; }
 .icon:hover { background: var(--surface-2); color: var(--ink); }
@@ -222,6 +234,7 @@ table.cols td.cb { text-align: center; }
   </span>
   <input id="docname" class="docname" aria-label="Nom du modèle" disabled>
   <span class="grow"></span>
+  <button id="theme" class="btn theme" type="button"></button>
   <button id="lock" class="btn lock" type="button"></button>
   <span class="sep"></span>
   <span id="actions" class="actions"></span>
@@ -252,6 +265,7 @@ table.cols td.cb { text-align: center; }
 
 const STORE_KEY = 'dbviz.v1';
 const EDIT_KEY = 'dbviz.edition';
+const THEME_KEY = 'dbviz.theme';
 const MAX_IMPORT = 5 * 1024 * 1024;
 const UNDO_MAX = 20;
 // Copie de exemples/boutique.dbml, régénérée par `node scripts/sync-exemple.js`.
@@ -810,6 +824,32 @@ function setEditMode(on) {
   renderAll();
 }
 try { ui.edit = localStorage.getItem(EDIT_KEY) === '1'; } catch (_) { /* lecture seule */ }
+
+/* ---------- Thème : celui du système (auto), clair ou sombre ; un réglage d'affichage, permis en lecture seule ---------- */
+
+const THEMES = { auto: 'Thème du système', light: 'Thème clair', dark: 'Thème sombre' };
+const THEME_NEXT = { auto: 'light', light: 'dark', dark: 'auto' };
+let theme = 'auto';
+try { const t = localStorage.getItem(THEME_KEY); if (THEMES[t]) theme = t; } catch (_) { /* thème du système */ }
+function applyTheme() {
+  if (theme === 'auto') delete document.documentElement.dataset.theme;
+  else document.documentElement.dataset.theme = theme;
+}
+function setTheme(t) {
+  theme = t;
+  try { localStorage.setItem(THEME_KEY, t); } catch (_) { /* ignoré */ }
+  applyTheme();
+  renderHeader();
+}
+applyTheme();
+
+const themeIcon = t => s('svg', { viewBox: '0 0 16 16', width: 14, height: 14, 'aria-hidden': 'true', fill: 'none', stroke: 'currentColor', 'stroke-width': 1.5, 'stroke-linecap': 'round' },
+  t === 'light' ? [s('circle', { cx: 8, cy: 8, r: 2.8 }), [0, 1, 2, 3, 4, 5, 6, 7].map(i => {
+    const a = (i * Math.PI) / 4, c = Math.cos(a), n = Math.sin(a);
+    return s('line', { x1: 8 + 4.8 * c, y1: 8 + 4.8 * n, x2: 8 + 6.6 * c, y2: 8 + 6.6 * n });
+  })]
+    : t === 'dark' ? s('path', { d: 'M13.6 9.8A5.8 5.8 0 1 1 6.2 2.4a4.6 4.6 0 0 0 7.4 7.4z' })
+      : [s('circle', { cx: 8, cy: 8, r: 5.8 }), s('path', { d: 'M8 2.2a5.8 5.8 0 0 1 0 11.6z', fill: 'currentColor', stroke: 'none' })]);
 
 const editorIsOpen = () => $('editor').open;
 const typing = e => !!e.target.closest?.('input, select, textarea, [contenteditable]');
@@ -2007,6 +2047,10 @@ function renderHeader() {
   lock.classList.toggle('on', ui.edit);
   lock.title = ui.edit ? 'Verrouiller : repasser en lecture seule (E)' : 'Déverrouiller pour ajouter, modifier ou supprimer (E)';
   fill(lock, lockIcon(ui.edit), ui.edit ? 'Édition' : 'Lecture seule');
+  const th = $('theme');
+  th.title = `${THEMES[theme]} — cliquer pour : ${THEMES[THEME_NEXT[theme]].toLowerCase()}`;
+  th.setAttribute('aria-label', th.title);
+  fill(th, themeIcon(theme));
   const name = $('docname');
   name.disabled = !ui.edit;
   if (document.activeElement !== name) name.value = state.project?.name || '';
@@ -2020,6 +2064,7 @@ function renderHeader() {
 }
 
 $('lock').addEventListener('click', () => setEditMode(!ui.edit));
+$('theme').addEventListener('click', () => setTheme(THEME_NEXT[theme]));
 
 $('docname').addEventListener('change', e => {
   if (!ui.edit) return;
