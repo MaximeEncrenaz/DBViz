@@ -7,23 +7,25 @@
 <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; base-uri 'none'; form-action 'none'">
 <title>DBViz</title>
 <style>
-/* Bandeau, puis deux colonnes : graphe | détail. Polices système uniquement (hors ligne). */
+/* Outil de développeur : bandeau, barre de contexte et d'outils, graphe | panneau (Détail / DBML), barre d'état.
+   Polices système uniquement (hors ligne) ; identifiants en chasse fixe. */
 :root {
-  --bg: #e8ecf0; --surface: #ffffff; --surface-2: #f4f6f8; --ink: #142230; --muted: #5b6979; --line: #d5dce3;
-  --accent: #0f6c7a; --accent-ink: #ffffff; --accent-soft: #dcedf0;
-  --canvas: #f3f6f8; --grid: rgba(20, 34, 48, .07);
-  --ok: #2f7d4f; --ok-soft: #e1f1e6; --warn: #b46f06; --warn-soft: #fbeed5; --err: #b8322a; --err-soft: #f8e0dd;
-  --f-display: "Bahnschrift SemiCondensed", Bahnschrift, "Arial Narrow", "Segoe UI", sans-serif;
+  --bg: #f6f7f9; --surface: #ffffff; --surface-2: #f0f2f5; --ink: #1c2128; --muted: #636c76; --line: #d8dee4; --line-2: #e7ebef;
+  --accent: #0969da; --accent-ink: #ffffff; --accent-soft: #ddf0ff;
+  --canvas: #fbfcfd; --grid: rgba(28, 33, 40, .09);
+  --ok: #1a7f37; --warn: #9a6700; --warn-soft: #fff4c2; --err: #cf222e; --err-soft: #ffebe9;
+  --rel-n1: #5b6b7f; --rel-11: #1a7f37; --rel-nn: #8250df;
   --f-body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
-  --f-mono: "Cascadia Mono", Consolas, ui-monospace, Menlo, monospace;
+  --f-mono: "Cascadia Code", "Cascadia Mono", Consolas, ui-monospace, Menlo, monospace;
   color-scheme: light;
 }
 @media (prefers-color-scheme: dark) {
   :root {
-    --bg: #0b1117; --surface: #131c25; --surface-2: #18232e; --ink: #e2e9ef; --muted: #91a2b2; --line: #25323e;
-    --accent: #4fb8c4; --accent-ink: #04181b; --accent-soft: #143a40;
-    --canvas: #0f171e; --grid: rgba(255, 255, 255, .05);
-    --ok: #5cc489; --ok-soft: #15301f; --warn: #f0ac3e; --warn-soft: #382a10; --err: #f06a5d; --err-soft: #3b1b19;
+    --bg: #0d1117; --surface: #151b23; --surface-2: #1c232c; --ink: #e6edf3; --muted: #8d96a0; --line: #2d353f; --line-2: #222a33;
+    --accent: #4493f8; --accent-ink: #051325; --accent-soft: #11294a;
+    --canvas: #0f141a; --grid: rgba(255, 255, 255, .07);
+    --ok: #3fb950; --warn: #d29922; --warn-soft: #2e2509; --err: #f85149; --err-soft: #3a1717;
+    --rel-n1: #8b9bb0; --rel-11: #3fb950; --rel-nn: #a371f7;
     color-scheme: dark;
   }
 }
@@ -31,70 +33,215 @@
 * { box-sizing: border-box; }
 [hidden] { display: none !important; }
 html, body { height: 100%; margin: 0; }
-body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); display: grid; grid-template-rows: auto minmax(0, 1fr); }
-h1, h2, h3 { font-family: var(--f-display); font-stretch: semi-condensed; margin: 0; text-wrap: balance; }
+body { background: var(--bg); color: var(--ink); font: 13px/1.45 var(--f-body); display: grid; grid-template-rows: auto minmax(0, 1fr) auto; }
+h2, h3 { margin: 0; font-size: 14px; font-weight: 600; }
 button, select, input, textarea { font: inherit; color: inherit; }
-:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
-.mono { font-family: var(--f-mono); font-size: .88em; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 1px; }
+.mono { font-family: var(--f-mono); font-size: 12px; }
 .muted { color: var(--muted); }
 .grow { flex: 1; min-width: 0; }
-.label { font-family: var(--f-display); font-stretch: semi-condensed; font-weight: 600; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+.label { font-size: 11px; font-weight: 600; letter-spacing: .07em; text-transform: uppercase; color: var(--muted); }
 
-.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
-.btn:hover { border-color: var(--accent); }
-.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
-.btn.small { padding: 3px 9px; font-size: 12.5px; }
+.btn { height: 28px; border: 1px solid var(--line); background: var(--surface); border-radius: 5px; padding: 0 10px; cursor: pointer; font-size: 12.5px; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { background: var(--surface-2); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.small { height: 24px; padding: 0 8px; font-size: 12px; }
+.btn.danger { color: var(--err); }
 .btn.lock svg { display: block; }
 .btn.lock.on { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); font-weight: 600; }
+.icon { width: 22px; height: 22px; border: 0; background: none; border-radius: 4px; cursor: pointer; color: var(--muted); display: inline-grid; place-items: center; padding: 0; }
+.icon:hover { background: var(--surface-2); color: var(--ink); }
+.icon.danger:hover { color: var(--err); }
+kbd { font: 600 10.5px var(--f-mono); border: 1px solid var(--line); border-bottom-width: 2px; border-radius: 3px; padding: 0 4px; background: var(--surface-2); }
 
-header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 1px 2px rgba(10, 20, 30, .05); }
+header { display: flex; align-items: center; gap: 10px; height: 46px; padding: 0 12px; background: var(--surface); border-bottom: 1px solid var(--line); }
 /* En édition, le bandeau porte un liseré de la couleur du cadenas ouvert. */
-body.editing header { box-shadow: inset 0 -3px 0 var(--warn), 0 1px 2px rgba(10, 20, 30, .05); }
-.brand { font-family: var(--f-display); font-weight: 700; font-size: 18px; letter-spacing: .02em; }
-.docname { border: 1px solid transparent; border-radius: 6px; background: none; padding: 4px 8px; font-weight: 600; min-width: 0; width: 22ch; }
-.docname:not(:disabled):hover { border-color: var(--line); }
-.docname:disabled { color: var(--ink); }
-.sep { width: 1px; align-self: stretch; background: var(--line); }
+body.editing header { box-shadow: inset 0 -3px 0 var(--warn); }
+.brand { display: flex; align-items: center; gap: 7px; font: 700 14px var(--f-mono); letter-spacing: -.01em; }
+.brand svg { color: var(--accent); }
+.docname { height: 28px; border: 1px solid transparent; border-radius: 5px; background: none; padding: 0 8px; font: 500 12.5px var(--f-mono); width: 24ch; min-width: 0; }
+.docname:not(:disabled):hover, .docname:not(:disabled):focus { border-color: var(--line); background: var(--surface); }
+.docname:disabled { color: var(--muted); }
+.sep { width: 1px; height: 22px; background: var(--line); }
+.actions { display: flex; gap: 6px; }
 
-main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
-.view { position: relative; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
-.toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
-.canvas { position: relative; overflow: hidden; background-color: var(--canvas); background-image: radial-gradient(var(--grid) 1px, transparent 1px); background-size: 22px 22px; }
-.canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; }
-.placeholder { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 6px; padding: 24px; color: var(--muted); }
-aside { border-left: 1px solid var(--line); background: var(--surface); overflow: auto; padding: 14px 16px; display: grid; align-content: start; gap: 14px; }
-.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
-.stat { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
-.stat b { display: block; font-family: var(--f-display); font-size: 22px; }
-.issues { margin: 0; padding-left: 18px; }
-.issues li { color: var(--warn); }
-.hint { font-size: 12.5px; color: var(--muted); }
-.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 8px; font-size: 13px; z-index: 30; }
+main { display: grid; grid-template-columns: minmax(0, 1fr) 360px; min-height: 0; }
+.view { position: relative; min-height: 0; display: grid; grid-template-rows: auto auto minmax(0, 1fr); }
+.bar { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; padding: 6px 10px; min-height: 40px; border-bottom: 1px solid var(--line); background: var(--surface); }
+.bar.tools { background: var(--surface-2); min-height: 36px; padding: 4px 10px; }
+.crumb { display: flex; align-items: center; gap: 6px; font: 600 12.5px var(--f-mono); }
+.crumb .kind { font: 500 11px var(--f-body); color: var(--muted); text-transform: uppercase; letter-spacing: .06em; }
+.count { font: 11.5px var(--f-mono); color: var(--muted); }
+select.sm, input.sm { height: 26px; border: 1px solid var(--line); border-radius: 5px; background: var(--surface); padding: 0 6px; font-size: 12px; }
+input.search { font-family: var(--f-mono); width: 210px; padding-left: 8px; }
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 5px; overflow: hidden; background: var(--surface); }
+.seg button { border: 0; background: none; height: 24px; padding: 0 9px; font-size: 12px; color: var(--muted); cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--line); }
+.seg button.on { background: var(--accent-soft); color: var(--accent); font-weight: 600; }
+.tool-label { font-size: 11.5px; color: var(--muted); }
+.hint { font-size: 12px; color: var(--muted); }
+.hint b { color: var(--ink); font-weight: 600; }
+details.pop { position: relative; }
+details.pop > summary { list-style: none; }
+details.pop > summary::-webkit-details-marker { display: none; }
+details.pop[open] > summary { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
+.pop-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; min-width: 230px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, .16); display: grid; gap: 6px; }
+.pop-panel label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; }
+.legend-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
+.legend-row svg { flex: none; }
+
+.canvas { position: relative; overflow: hidden; background-color: var(--canvas); background-image: radial-gradient(var(--grid) 1px, transparent 1px); background-size: 20px 20px; }
+#graph { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; user-select: none; }
+#graph.panning { cursor: grabbing; }
+.placeholder { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 6px; padding: 24px; color: var(--muted); pointer-events: none; }
+
+/* Graphe */
+.hull { fill-opacity: .06; stroke-opacity: .5; stroke-width: 1.2; stroke-dasharray: 5 4; cursor: pointer; }
+.hull.focus { fill-opacity: .12; stroke-opacity: .95; stroke-width: 2.2; }
+.hull-label { font: 700 11.5px var(--f-mono); letter-spacing: .08em; fill: var(--muted); paint-order: stroke; stroke: var(--canvas); stroke-width: 4px; stroke-linejoin: round; pointer-events: none; }
+.scene-title { font: 600 16px var(--f-mono); fill: var(--ink); text-anchor: middle; pointer-events: none; }
+.edge .line { fill: none; stroke-width: 1.7; }
+.edge.rel-nn .line { stroke-width: 2.3; }
+.edge.rel-n1 .line { stroke: var(--rel-n1); } .edge.rel-11 .line { stroke: var(--rel-11); } .edge.rel-nn .line { stroke: var(--rel-nn); }
+.edge.nullable .line { stroke-dasharray: 6 4; }
+.edge .hit { fill: none; stroke: transparent; stroke-width: 12; cursor: pointer; }
+.edge:hover .line { stroke-width: 2.8; }
+.edge.selected .line { stroke-width: 3.2; }
+.m-n1 { fill: var(--rel-n1); } .m-11 { fill: var(--rel-11); } .m-nn { fill: var(--rel-nn); }
+.elabel { font: 600 10px var(--f-mono); fill: var(--muted); text-anchor: middle; paint-order: stroke; stroke: var(--canvas); stroke-width: 3.5px; stroke-linejoin: round; pointer-events: none; }
+.node { cursor: pointer; }
+.node .card { fill: var(--surface); stroke: var(--line); stroke-width: 1.2; }
+.node .head { fill: var(--surface-2); }
+.node .rule { stroke: var(--line); stroke-width: 1; }
+.node:hover .card { stroke: var(--accent); }
+.node.center .card { stroke: var(--accent); stroke-width: 2; }
+.node.selected .card { stroke: var(--ink); stroke-width: 2.2; }
+.node.drop .card { stroke: var(--accent); stroke-width: 3; }
+.node text { font-family: var(--f-mono); }
+.node .tname { font-size: 12.5px; font-weight: 700; fill: var(--ink); }
+.node .tschema { font-weight: 400; fill: var(--muted); }
+.node .ccount { font-size: 10.5px; fill: var(--muted); text-anchor: end; }
+.node .cname { font-size: 11px; fill: var(--ink); }
+.node .ctype { font-size: 10.5px; fill: var(--muted); text-anchor: end; }
+.node .ctag { font-size: 9px; font-weight: 700; fill: var(--muted); }
+.node .ctag.pk { fill: var(--accent); }
+.node .cmore { font-size: 10.5px; fill: var(--muted); font-style: italic; }
+.node.measure { visibility: hidden; pointer-events: none; }
+body.editing .node { cursor: crosshair; }
+.draft-link { stroke: var(--accent); stroke-width: 2.2; stroke-dasharray: 7 4; fill: none; pointer-events: none; }
+.dim { opacity: .13; }
+
+/* Panneau latéral */
+aside { border-left: 1px solid var(--line); background: var(--surface); display: grid; grid-template-rows: auto minmax(0, 1fr); min-height: 0; }
+.tabs { display: flex; border-bottom: 1px solid var(--line); padding: 0 6px; }
+.tabs button { border: 0; border-bottom: 2px solid transparent; background: none; padding: 10px 10px 8px; font-size: 11.5px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase; color: var(--muted); cursor: pointer; }
+.tabs button.on { color: var(--ink); border-bottom-color: var(--accent); }
+.pane { overflow: auto; overflow-x: hidden; padding: 14px; display: grid; align-content: start; gap: 14px; min-height: 0; }
+.pane.src { padding: 0; gap: 0; grid-template-rows: auto minmax(0, 1fr) auto; align-content: stretch; }
+.srcbar { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-bottom: 1px solid var(--line); }
+textarea.code { width: 100%; height: 100%; border: 0; resize: none; padding: 12px; background: var(--canvas); color: var(--ink); font: 12px/1.55 var(--f-mono); tab-size: 2; white-space: pre; outline: none; }
+textarea.code[readonly] { color: var(--muted); }
+.src-error { padding: 8px 12px; background: var(--err-soft); color: var(--err); font: 12px var(--f-mono); border-top: 1px solid var(--line); }
+.dhead { display: flex; align-items: center; gap: 8px; }
+.dhead h2 { font: 700 14px var(--f-mono); overflow-wrap: anywhere; }
+.swatch { width: 10px; height: 10px; border-radius: 2px; flex: none; display: inline-block; }
+.dactions { display: flex; flex-wrap: wrap; gap: 6px; }
+.note { margin: 0; color: var(--muted); white-space: pre-wrap; }
+.stats { display: grid; grid-template-columns: repeat(4, 1fr); border: 1px solid var(--line); border-radius: 6px; }
+.stat { padding: 8px 10px; }
+.stat + .stat { border-left: 1px solid var(--line); }
+.stat b { display: block; font: 700 18px var(--f-mono); }
+.stat span { font-size: 11px; color: var(--muted); }
+table.grid { width: 100%; border-collapse: collapse; font-size: 12px; table-layout: fixed; }
+table.grid th:first-child { width: 30px; }
+table.grid th:nth-child(2) { width: 52%; }
+table.grid td.mono { overflow-wrap: anywhere; }
+table.grid td, table.grid th { padding: 4px 6px; border-bottom: 1px solid var(--line-2); text-align: left; vertical-align: top; }
+table.grid th { font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .06em; color: var(--muted); }
+table.grid tr.link { cursor: pointer; }
+table.grid tr.link:hover td { background: var(--surface-2); }
+.tag { font: 700 9.5px var(--f-mono); color: var(--muted); }
+.tag.pk { color: var(--accent); }
+.flags { font: 10.5px var(--f-mono); color: var(--muted); }
+.rel { font: 700 10px var(--f-mono); padding: 1px 5px; border-radius: 3px; border: 1px solid currentColor; white-space: nowrap; }
+.rel.n1 { color: var(--rel-n1); } .rel.r11 { color: var(--rel-11); } .rel.nn { color: var(--rel-nn); }
+.list { display: grid; gap: 2px; }
+.row { display: flex; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: pointer; font-size: 12.5px; }
+.row:hover { background: var(--surface-2); }
+.row .mono { overflow-wrap: anywhere; }
+.issues { margin: 0; padding-left: 18px; color: var(--warn); font-size: 12.5px; }
+.keys { display: grid; grid-template-columns: auto 1fr; gap: 4px 10px; font-size: 12px; color: var(--muted); align-items: center; }
+.keys > kbd { justify-self: start; }
+.cols input::placeholder { color: var(--muted); opacity: .6; }
+.snippet { margin: 0; padding: 8px 10px; background: var(--canvas); border: 1px solid var(--line); border-radius: 5px; font: 11.5px/1.5 var(--f-mono); white-space: pre-wrap; overflow-wrap: anywhere; }
+
+/* Barre d'état */
+.statusbar { display: flex; align-items: center; gap: 14px; height: 24px; padding: 0 12px; border-top: 1px solid var(--line); background: var(--surface); font: 11px var(--f-mono); color: var(--muted); white-space: nowrap; overflow: hidden; }
+.statusbar .warn { color: var(--warn); }
+.statusbar .mode.on { color: var(--warn); font-weight: 700; }
+
+/* Éditeurs */
+dialog { border: 1px solid var(--line); border-radius: 8px; background: var(--surface); color: var(--ink); padding: 0; width: min(900px, calc(100vw - 32px)); max-height: calc(100vh - 32px); box-shadow: 0 20px 60px rgba(0, 0, 0, .3); }
+dialog.narrow { width: min(560px, calc(100vw - 32px)); }
+dialog::backdrop { background: rgba(8, 12, 18, .5); }
+dialog form { display: grid; gap: 14px; padding: 18px 20px; }
+dialog h2 { font-size: 15px; }
+.fields { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 10px 12px; }
+.field { display: grid; gap: 4px; font-size: 12px; color: var(--muted); }
+.field input, .field select, .field textarea, .cols input { height: 28px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface); padding: 0 7px; color: var(--ink); font-size: 12.5px; }
+.field textarea { height: 56px; padding: 5px 7px; resize: vertical; }
+.field .mono, .cols .mono { font-family: var(--f-mono); font-size: 12px; }
+.cols-wrap { max-height: 46vh; overflow: auto; border: 1px solid var(--line); border-radius: 5px; }
+table.cols { width: 100%; border-collapse: collapse; font-size: 12px; }
+table.cols th { position: sticky; top: 0; background: var(--surface-2); font-size: 10.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .05em; color: var(--muted); padding: 5px 4px; text-align: left; z-index: 1; }
+table.cols td { padding: 3px 4px; border-top: 1px solid var(--line-2); }
+table.cols input[type=text] { width: 100%; }
+table.cols td.cb { text-align: center; }
+.preview { margin: 0; padding: 8px 10px; background: var(--canvas); border: 1px solid var(--line); border-radius: 5px; font: 12px var(--f-mono); color: var(--muted); overflow-wrap: anywhere; }
+.form-error { color: var(--err); font-size: 12.5px; }
+.form-actions { display: flex; justify-content: flex-end; gap: 8px; }
+
+.toast { position: fixed; bottom: 34px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 7px 14px; border-radius: 6px; font-size: 12.5px; z-index: 30; }
 .toast.err { background: var(--err); color: #fff; }
+
+@media (max-width: 900px) {
+  main { grid-template-columns: 1fr; grid-template-rows: minmax(0, 1fr) 42vh; }
+  aside { border-left: 0; border-top: 1px solid var(--line); }
+  .docname { width: 14ch; }
+  input.search { width: 150px; }
+}
 </style>
 </head>
 <body>
 <header>
-  <span class="brand">DBViz</span>
+  <span class="brand">
+    <svg viewBox="0 0 16 16" width="16" height="16" aria-hidden="true"><rect x="1" y="2" width="6" height="5" rx="1" fill="currentColor"/><rect x="9" y="9" width="6" height="5" rx="1" fill="currentColor" opacity=".55"/><path d="M7 4.5h3.5v4.5" fill="none" stroke="currentColor" stroke-width="1.4"/></svg>
+    dbviz
+  </span>
   <input id="docname" class="docname" aria-label="Nom du modèle" disabled>
   <span class="grow"></span>
   <button id="lock" class="btn lock" type="button"></button>
   <span class="sep"></span>
-  <span id="actions" style="display:flex; gap:8px"></span>
+  <span id="actions" class="actions"></span>
 </header>
 <main>
   <section class="view">
-    <div class="toolbar" id="toolbar"></div>
+    <div class="bar" id="ctxbar"></div>
+    <div class="bar tools" id="toolbar"></div>
     <div class="canvas" id="canvas">
       <svg id="graph" role="img" aria-label="Graphe du modèle de données"></svg>
-      <div class="placeholder" id="placeholder">
-        <strong>Vue graphe à venir</strong>
-        <span>Elle suivra le skill <span class="mono">graphe-reseau</span> : plan d'ensemble par groupe de tables, focus sur une table, focus sur un groupe.</span>
-      </div>
+      <div class="placeholder" id="placeholder" hidden></div>
     </div>
   </section>
-  <aside id="detail"></aside>
+  <aside>
+    <div class="tabs" id="tabs" role="tablist"></div>
+    <div class="pane" id="detail"></div>
+    <div class="pane src" id="source" hidden></div>
+  </aside>
 </main>
+<footer class="statusbar" id="status"></footer>
+<dialog id="editor"><form id="editorForm" novalidate></form></dialog>
 <input type="file" id="file" accept=".dbml,text/plain" hidden>
 
 <script>
@@ -105,12 +252,37 @@ aside { border-left: 1px solid var(--line); background: var(--surface); overflow
 const STORE_KEY = 'dbviz.v1';
 const EDIT_KEY = 'dbviz.edition';
 const MAX_IMPORT = 5 * 1024 * 1024;
+const UNDO_MAX = 20;
 // Copie de exemples/boutique.dbml, régénérée par `node scripts/sync-exemple.js`.
-const SAMPLE = "// Exemple : base d'une boutique en ligne.\n// Sert de jeu de démonstration (bouton « Exemple ») et de modèle pour préparer un import.\n\nProject boutique {\n  database_type: 'PostgreSQL'\n  Note: 'Boutique en ligne : clients, catalogue, commandes et paiements.'\n}\n\nEnum statut_commande {\n  brouillon\n  validee [note: 'Payée, en attente de préparation']\n  expediee\n  livree\n  annulee\n}\n\nTable clients [headercolor: #0f6c7a] {\n  id integer [pk, increment]\n  email varchar(255) [unique, not null]\n  nom varchar(120) [not null]\n  cree_le timestamp [default: `now()`]\n  Note: 'Une ligne par compte client.'\n}\n\nTable adresses {\n  id integer [pk, increment]\n  client_id integer [not null, ref: > clients.id]\n  ligne1 varchar(255) [not null]\n  code_postal varchar(10)\n  ville varchar(120)\n  pays char(2) [default: 'FR']\n}\n\nTable profils {\n  client_id integer [pk]\n  telephone varchar(20)\n  newsletter boolean [default: false]\n}\n\nTable categories {\n  id integer [pk, increment]\n  parent_id integer\n  libelle varchar(120) [not null]\n}\n\nTable produits {\n  id integer [pk, increment]\n  categorie_id integer [not null]\n  reference varchar(30) [unique, not null]\n  libelle varchar(255) [not null]\n  prix_ht decimal(10, 2) [not null]\n  indexes {\n    (categorie_id, libelle)\n    reference [unique, name: 'idx_produits_reference']\n  }\n}\n\nTable fournisseurs {\n  id integer [pk, increment]\n  raison_sociale varchar(255) [not null]\n}\n\nTable commandes {\n  id integer [pk, increment]\n  client_id integer [not null]\n  adresse_livraison_id integer\n  statut statut_commande [not null, default: 'brouillon']\n  passee_le timestamp\n}\n\nTable lignes_commande {\n  commande_id integer [pk]\n  numero smallint [pk]\n  produit_id integer [not null]\n  quantite integer [not null, default: 1]\n  prix_unitaire decimal(10, 2) [not null]\n}\n\nTable paiements {\n  id integer [pk, increment]\n  commande_id integer [not null]\n  montant decimal(10, 2) [not null]\n  moyen varchar(20) [note: 'carte, virement, avoir…']\n}\n\nTableGroup clientele [color: #0f6c7a] {\n  clients\n  adresses\n  profils\n}\n\nTableGroup catalogue [color: #7a4f0f] {\n  categories\n  produits\n  fournisseurs\n}\n\nTableGroup ventes [color: #6b2f7a] {\n  commandes\n  lignes_commande\n  paiements\n}\n\nRef: profils.client_id - clients.id [delete: cascade]\nRef: categories.parent_id > categories.id\nRef: produits.categorie_id > categories.id\nRef: produits.id <> fournisseurs.id\nRef: commandes.client_id > clients.id\nRef: commandes.adresse_livraison_id > adresses.id [delete: set null]\nRef: lignes_commande.commande_id > commandes.id [delete: cascade]\nRef: lignes_commande.produit_id > produits.id\nRef: paiements.commande_id > commandes.id\n"; // @sample
+const SAMPLE = "// Exemple : base d'une boutique en ligne.\n// Sert de jeu de démonstration (bouton « Exemple ») et de modèle pour préparer un import.\n\nProject boutique {\n  database_type: 'PostgreSQL'\n  Note: 'Boutique en ligne : clients, catalogue, commandes et paiements.'\n}\n\nEnum statut_commande {\n  brouillon\n  validee [note: 'Payée, en attente de préparation']\n  expediee\n  livree\n  annulee\n}\n\nTable clients [headercolor: #1f8a9e] {\n  id integer [pk, increment]\n  email varchar(255) [unique, not null]\n  nom varchar(120) [not null]\n  cree_le timestamp [default: `now()`]\n  Note: 'Une ligne par compte client.'\n}\n\nTable adresses {\n  id integer [pk, increment]\n  client_id integer [not null, ref: > clients.id]\n  ligne1 varchar(255) [not null]\n  code_postal varchar(10)\n  ville varchar(120)\n  pays char(2) [default: 'FR']\n}\n\nTable profils {\n  client_id integer [pk]\n  telephone varchar(20)\n  newsletter boolean [default: false]\n}\n\nTable categories {\n  id integer [pk, increment]\n  parent_id integer\n  libelle varchar(120) [not null]\n}\n\nTable produits {\n  id integer [pk, increment]\n  categorie_id integer [not null]\n  reference varchar(30) [unique, not null]\n  libelle varchar(255) [not null]\n  prix_ht decimal(10, 2) [not null]\n  indexes {\n    (categorie_id, libelle)\n    reference [unique, name: 'idx_produits_reference']\n  }\n}\n\nTable fournisseurs {\n  id integer [pk, increment]\n  raison_sociale varchar(255) [not null]\n}\n\nTable commandes {\n  id integer [pk, increment]\n  client_id integer [not null]\n  adresse_livraison_id integer\n  statut statut_commande [not null, default: 'brouillon']\n  passee_le timestamp\n}\n\nTable lignes_commande {\n  commande_id integer [pk]\n  numero smallint [pk]\n  produit_id integer [not null]\n  quantite integer [not null, default: 1]\n  prix_unitaire decimal(10, 2) [not null]\n}\n\nTable paiements {\n  id integer [pk, increment]\n  commande_id integer [not null]\n  montant decimal(10, 2) [not null]\n  moyen varchar(20) [note: 'carte, virement, avoir…']\n}\n\nTableGroup clientele [color: #1f8a9e] {\n  clients\n  adresses\n  profils\n}\n\nTableGroup catalogue [color: #b7791f] {\n  categories\n  produits\n  fournisseurs\n}\n\nTableGroup ventes [color: #8e4bb0] {\n  commandes\n  lignes_commande\n  paiements\n}\n\nRef: profils.client_id - clients.id [delete: cascade]\nRef: categories.parent_id > categories.id\nRef: produits.categorie_id > categories.id\nRef: produits.id <> fournisseurs.id\nRef: commandes.client_id > clients.id\nRef: commandes.adresse_livraison_id > adresses.id [delete: set null]\nRef: lignes_commande.commande_id > commandes.id [delete: cascade]\nRef: lignes_commande.produit_id > produits.id\nRef: paiements.commande_id > commandes.id\n"; // @sample
+
+const SVG_NS = 'http://www.w3.org/2000/svg';
+const GROUP_PALETTE = ['#1f8a9e', '#b7791f', '#8e4bb0', '#2f9e5b', '#c2410c', '#4f6d8f', '#b0458f', '#6b7f2a'];
+const NEUTRAL = '#8a929c';
+// Cardinalités : `>` plusieurs-à-un (la source porte la clé étrangère), `-` un-à-un, `<>` plusieurs-à-plusieurs.
+const RELS = {
+  '>': { cls: 'n1', badge: 'n1', label: 'N:1', name: 'Plusieurs-à-un' },
+  '-': { cls: '11', badge: 'r11', label: '1:1', name: 'Un-à-un' },
+  '<>': { cls: 'nn', badge: 'nn', label: 'N:N', name: 'Plusieurs-à-plusieurs' },
+};
+const ACTIONS = ['', 'cascade', 'restrict', 'set null', 'set default', 'no action'];
 
 let state = emptyModel();
 let issues = [];
-const ui = { edit: false, selected: null };
+const ui = {
+  edit: false,
+  selected: null,       // { type: 'table' | 'ref' | 'group', id }
+  focus: null,          // clé de la table au centre (scène « focus table »)
+  group: '',            // groupe choisi (scène « focus groupe »)
+  schema: '',           // schéma choisi (constellations par groupe)
+  labels: 'cols',       // étiquettes des traits : cols | names | none
+  cards: 'keys',        // contenu des cartes : keys | all | none
+  hideRel: new Set(),   // cardinalités masquées
+  hideGroups: new Set(),// groupes masqués ('' = tables sans groupe)
+  tab: 'detail',
+  srcDraft: null,       // texte DBML en cours de saisie dans l'onglet DBML
+  srcError: '',
+};
 
 function emptyModel() {
   return { project: null, tables: [], refs: [], enums: [], groups: [], notes: [] };
@@ -118,24 +290,28 @@ function emptyModel() {
 
 /* ---------- Aides DOM ---------- */
 
-// h() aplatit les enfants (tableaux, null ignorés) ; le texte est toujours posé en nœud texte.
-function h(tag, attrs, ...children) {
-  const el = document.createElement(tag);
+// h() (HTML) et s() (SVG) aplatissent les enfants (tableaux, null ignorés) ; le texte est toujours posé en nœud texte.
+function build(el, attrs, children) {
   for (const [k, v] of Object.entries(attrs || {})) {
     if (v == null || v === false) continue;
-    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
-    else if (k === 'class') el.className = v;
+    if (k.startsWith('on') && typeof v === 'function') el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.setAttribute('class', v);
     else el.setAttribute(k, v === true ? '' : v);
   }
   fill(el, ...children);
   return el;
 }
+const h = (tag, attrs, ...children) => build(document.createElement(tag), attrs, children);
+const s = (tag, attrs, ...children) => build(document.createElementNS(SVG_NS, tag), attrs, children);
 function fill(el, ...children) {
   el.textContent = '';
   for (const c of children.flat(Infinity)) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
   return el;
 }
 const $ = id => document.getElementById(id);
+const clamp = (v, lo, hi) => Math.min(hi, Math.max(lo, v));
+const plural = (n, word, many = word + 's') => `${n} ${n > 1 ? many : word}`;
+const reduceMotion = () => matchMedia('(prefers-reduced-motion: reduce)').matches;
 
 function toast(text, isErr) {
   const t = h('div', { class: 'toast' + (isErr ? ' err' : ''), role: 'status' }, text);
@@ -541,20 +717,87 @@ function toDbml(m) {
   return out.join('\n').replace(/\n+$/, '\n');
 }
 
-/* ---------- Persistance ---------- */
+/* ---------- Accès au modèle ---------- */
+
+const tableByKey = k => state.tables.find(t => tableKey(t) === k);
+const groupByName = name => state.groups.find(g => g.name === name);
+const groupOf = key => state.groups.find(g => g.tables.includes(key));
+const groupName = key => groupOf(key)?.name || '';
+const groupColor = g => (g ? g.color || GROUP_PALETTE[state.groups.indexOf(g) % GROUP_PALETTE.length] : NEUTRAL);
+const tableColor = t => { const g = groupOf(tableKey(t)); return g ? groupColor(g) : t.color || NEUTRAL; };
+const groupIndex = key => { const i = state.groups.findIndex(g => g.tables.includes(key)); return i < 0 ? 999 : i; };
+const tableVisible = key => !ui.hideGroups.has(groupName(key));
+const relOf = r => RELS[r.rel] || RELS['>'];
+const refById = id => state.refs.find(r => r.id === id);
+const refsOf = key => state.refs.filter(r => r.from.table === key || r.to.table === key);
+const schemaOf = t => t.schema || 'public';
+const schemas = () => [...new Set(state.tables.map(schemaOf))].sort();
+const fkColumns = key => new Set(state.refs.filter(r => r.from.table === key).flatMap(r => r.from.columns));
+const refText = r => `${qend(r.from)} ${r.rel} ${qend(r.to)}`;
+// Clé étrangère facultative (colonnes sources toutes nullables) : trait en tirets.
+const refNullable = r => r.rel === '>' && r.from.columns.every(c => {
+  const col = tableByKey(r.from.table)?.columns.find(x => x.name === c);
+  return col && !col.notNull && !col.pk;
+});
+const nextId = (prefix, list) => prefix + (list.reduce((m, x) => Math.max(m, parseInt(String(x.id).slice(prefix.length), 10) || 0), 0) + 1);
+
+function visibleRefs() {
+  return state.refs.filter(r => !ui.hideRel.has(r.rel) && tableVisible(r.from.table) && tableVisible(r.to.table));
+}
+
+/* ---------- Persistance et annulation ---------- */
+
+const undoStack = [];
+let lastSaved = '';
 
 function save() {
   try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (_) { toast('Enregistrement impossible dans ce navigateur', true); }
 }
-// Toute modification : muter `state` en place puis commit().
-function commit() { save(); renderAll(); }
+// Toute modification : muter `state` en place puis commit() (enregistrement, historique, rendu).
+function commit() {
+  const now = JSON.stringify(state);
+  if (now !== lastSaved) {
+    undoStack.push(lastSaved);
+    if (undoStack.length > UNDO_MAX) undoStack.shift();
+    lastSaved = now;
+  }
+  save();
+  renderAll();
+}
+function undo() {
+  if (!ui.edit || !undoStack.length) return;
+  state = JSON.parse(undoStack.pop());
+  lastSaved = JSON.stringify(state);
+  cleanUi();
+  save();
+  renderAll();
+  toast('Modification annulée');
+}
+// Remplacement complet du modèle (import, exemple, onglet DBML).
+function replaceState(m) {
+  state = m;
+  cleanUi();
+  planPos.clear();
+  sceneIdentity = null;
+  firstFit = true;
+  commit();
+}
+// Retire de l'état d'interface ce qui ne correspond plus au modèle.
+function cleanUi() {
+  if (ui.focus && !tableByKey(ui.focus)) ui.focus = null;
+  if (ui.group && !groupByName(ui.group)) ui.group = '';
+  if (ui.schema && !schemas().includes(ui.schema)) ui.schema = '';
+  const sel = ui.selected;
+  if (sel && !(sel.type === 'table' ? tableByKey(sel.id) : sel.type === 'ref' ? refById(sel.id) : groupByName(sel.id))) ui.selected = null;
+}
 
 function load() {
   try {
     const raw = localStorage.getItem(STORE_KEY);
-    if (raw) { state = normalize(JSON.parse(raw)); return; }
+    if (raw) { state = normalize(JSON.parse(raw)); lastSaved = JSON.stringify(state); return; }
   } catch (_) { /* stockage illisible : on repart de l'exemple */ }
   state = SAMPLE ? normalize(parseDbml(SAMPLE)) : emptyModel();
+  lastSaved = JSON.stringify(state);
 }
 
 /* ---------- Mode édition (skill mode-edition) ---------- */
@@ -566,30 +809,1040 @@ function setEditMode(on) {
 }
 try { ui.edit = localStorage.getItem(EDIT_KEY) === '1'; } catch (_) { /* lecture seule */ }
 
-const editorIsOpen = () => !!document.querySelector('dialog[open]');
-// Aide de gabarit : rien hors édition.
-const editBtn = (text, onclick, primary, title) => (ui.edit ? h('button', { class: 'btn small' + (primary ? ' primary' : ''), type: 'button', onclick, title }, text) : null);
+const editorIsOpen = () => $('editor').open;
+const typing = e => !!e.target.closest?.('input, select, textarea, [contenteditable]');
+// Aides de gabarit : rien hors édition.
+const editBtn = (text, onclick, cls = '', title) => (ui.edit ? h('button', { class: 'btn small ' + cls, type: 'button', onclick, title }, text) : null);
+const iconBtn = (glyph, title, onclick, danger) => (ui.edit ? h('button', { class: 'icon' + (danger ? ' danger' : ''), type: 'button', title, 'aria-label': title, onclick: e => { e.stopPropagation(); onclick(); } }, glyph) : null);
 
 const LOCK_PATH = { closed: 'M4 7V4.5a3 3 0 0 1 6 0V7', open: 'M4 7V4.5a3 3 0 0 1 5.8-1' };
-function lockIcon(open) {
-  const ns = 'http://www.w3.org/2000/svg';
-  const svg = document.createElementNS(ns, 'svg');
-  svg.setAttribute('viewBox', '0 0 14 16'); svg.setAttribute('width', '13'); svg.setAttribute('height', '15'); svg.setAttribute('aria-hidden', 'true');
-  const body = document.createElementNS(ns, 'rect');
-  Object.entries({ x: 1.5, y: 7, width: 11, height: 8, rx: 1.6, fill: 'currentColor' }).forEach(([k, v]) => body.setAttribute(k, v));
-  const arc = document.createElementNS(ns, 'path');
-  Object.entries({ d: open ? LOCK_PATH.open : LOCK_PATH.closed, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round' }).forEach(([k, v]) => arc.setAttribute(k, v));
-  svg.append(body, arc);
-  return svg;
+const lockIcon = open => s('svg', { viewBox: '0 0 14 16', width: 12, height: 14, 'aria-hidden': 'true' },
+  s('rect', { x: 1.5, y: 7, width: 11, height: 8, rx: 1.6, fill: 'currentColor' }),
+  s('path', { d: open ? LOCK_PATH.open : LOCK_PATH.closed, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round' }));
+
+/* ---------- Navigation ---------- */
+
+function select(sel) {
+  ui.selected = sel;
+  renderDetail();
+  applyHighlight();
+}
+function focusTable(key) {
+  if (!tableByKey(key)) return;
+  ui.focus = key;
+  ui.selected = { type: 'table', id: key };
+  renderAll();
+}
+function showGroup(name) {
+  ui.focus = null;
+  ui.group = name;
+  ui.selected = name ? { type: 'group', id: name } : null;
+  renderAll();
+}
+function backToPlan() {
+  ui.focus = null;
+  ui.group = '';
+  ui.schema = '';
+  ui.selected = null;
+  renderAll();
 }
 
-document.addEventListener('keydown', e => {
-  if (e.key.toLowerCase() === 'e' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && !editorIsOpen()
-    && !e.target.closest?.('input, select, textarea, [contenteditable]')) {
-    e.preventDefault();
-    setEditMode(!ui.edit);
+/* ---------- Graphe (skill graphe-reseau) ----------
+   Scènes : plan d'ensemble (tables par groupe), focus table, focus groupe, constellations par groupe pour un schéma.
+   Les éléments d'une scène de focus ou de constellation sont préfixés (k0|t:<clé>) car une table peut figurer
+   dans plusieurs constellations ; au plan, la clé d'élément est la clé de la table. */
+
+const svg = $('graph');
+const layers = {};
+(function initSvg() {
+  layers.defs = s('defs', {}, Object.values(RELS).map(r => s('marker', {
+    id: 'arrow-' + r.cls, viewBox: '0 0 10 10', refX: 9, refY: 5, markerWidth: 8, markerHeight: 8,
+    orient: 'auto-start-reverse', markerUnits: 'userSpaceOnUse',
+  }, s('path', { d: 'M0,0 L10,5 L0,10 z', class: 'm-' + r.cls }))));
+  layers.measure = s('text');
+  layers.viewport = s('g');
+  for (const name of ['deco', 'edges', 'labels', 'nodes', 'tags']) layers.viewport.append(layers[name] = s('g'));
+  svg.append(layers.defs, s('g', { class: 'node measure' }, layers.measure), layers.viewport);
+})();
+
+const pos = new Map();      // clé d'élément de la scène courante -> { x, y }
+const planPos = new Map();  // positions du plan déplacées à la main (clé de table), non enregistrées avec les données
+const view = { x: 0, y: 0, k: 1 };
+let scene = null;
+let sceneIdentity = null;
+let firstFit = true;
+let nodeEls = new Map(), edgeEls = [], hullEls = [];
+let tweenRaf = 0;
+let cardCache = new Map();
+
+// Mesure le texte avec les styles réels d'une carte (classe tname, cname, ctype…).
+function measure(text, cls) {
+  layers.measure.setAttribute('class', cls);
+  layers.measure.textContent = text;
+  return layers.measure.getComputedTextLength() || text.length * 7;
+}
+function truncate(text, cls, max) {
+  if (measure(text, cls) <= max) return text;
+  let t = text;
+  while (t.length > 3 && measure(t + '…', cls) > max) t = t.slice(0, -1);
+  return t.trimEnd() + '…';
+}
+
+const CARD = { padX: 10, head: 26, row: 17, pad: 6, min: 120 };
+
+// Contenu et taille d'une carte de table (avant agrandissement) selon le réglage « Cartes ».
+function cardSize(key) {
+  if (cardCache.has(key)) return cardCache.get(key);
+  const t = tableByKey(key);
+  const fks = fkColumns(key);
+  const cols = ui.cards === 'none' ? [] : ui.cards === 'all' ? t.columns : t.columns.filter(c => c.pk || fks.has(c.name));
+  const rows = cols.map(c => ({ name: truncate(c.name, 'cname', 150), type: truncate(c.type, 'ctype', 110), tag: c.pk ? 'PK' : fks.has(c.name) ? 'FK' : '' }));
+  const hidden = t.columns.length - cols.length;
+  const more = ui.cards === 'keys' && hidden ? `+ ${plural(hidden, 'colonne')}` : '';
+  const name = truncate(t.name, 'tname', 220);
+  const head = (t.schema ? measure(t.schema + '.', 'tname') : 0) + measure(name, 'tname') + (ui.cards === 'none' ? 28 : 0);
+  const body = Math.max(0, ...rows.map(r => 24 + measure(r.name, 'cname') + 16 + measure(r.type, 'ctype')), more ? measure(more, 'cmore') : 0);
+  const n = rows.length + (more ? 1 : 0);
+  const c = { t, name, rows, more, w: Math.ceil(Math.max(CARD.min, head + 2 * CARD.padX + 6, body + 2 * CARD.padX)), h: CARD.head + (n ? n * CARD.row + CARD.pad + 2 : 0) };
+  cardCache.set(key, c);
+  return c;
+}
+
+function edgesFor(ls, keyOf) {
+  const edges = [], pairs = new Map(), loops = new Map();
+  for (const r of ls) {
+    const from = keyOf(r.from.table), to = keyOf(r.to.table);
+    if (from === to) {
+      const k = loops.get(from) || 0;
+      loops.set(from, k + 1);
+      edges.push({ kind: 'self', r, from, to, loop: k });
+      continue;
+    }
+    const [lo, hi] = [from, to].sort();
+    const pair = lo + '\u0000' + hi;
+    if (!pairs.has(pair)) pairs.set(pair, []);
+    const e = { kind: 'd', r, from, to, lo, hi, offset: 0 };
+    pairs.get(pair).push(e);
+    edges.push(e);
+  }
+  // Plusieurs références entre deux mêmes tables : traits courbés de part et d'autre.
+  for (const list of pairs.values()) list.forEach((e, i) => { e.offset = (i - (list.length - 1) / 2) * 30; });
+  return edges;
+}
+
+function sceneSpec() {
+  const vis = visibleRefs();
+  const inSchema = r => !ui.schema || [r.from.table, r.to.table].some(k => schemaOf(tableByKey(k)) === ui.schema);
+  const suffix = ui.schema ? ' · ' + ui.schema : '';
+  if (ui.focus && tableByKey(ui.focus)) {
+    const ls = vis.filter(r => r.from.table === ui.focus || r.to.table === ui.focus);
+    return { mode: 'table', items: [{ ls, center: ui.focus, extra: [], title: `Table · ${ui.focus}` }] };
+  }
+  const g = ui.group && groupByName(ui.group);
+  if (g) {
+    const keys = new Set(g.tables.filter(tableVisible));
+    const ls = vis.filter(r => (keys.has(r.from.table) || keys.has(r.to.table)) && inSchema(r));
+    const extra = [...keys].filter(k => !ui.schema || schemaOf(tableByKey(k)) === ui.schema);
+    return { mode: 'group', items: [{ ls, center: null, extra, title: `Groupe · ${g.name}${suffix}` }] };
+  }
+  if (ui.schema) {
+    const ofSchema = state.tables.filter(t => schemaOf(t) === ui.schema).map(tableKey).filter(tableVisible);
+    const ls = vis.filter(inSchema);
+    const items = [...state.groups.map(x => x.name), ''].map(name => {
+      const keys = new Set(ofSchema.filter(k => groupName(k) === name));
+      const mine = ls.filter(r => keys.has(r.from.table) || keys.has(r.to.table));
+      return { ls: mine, center: null, extra: [...keys], title: `${name || 'Sans groupe'}${suffix}` };
+    }).filter(x => x.extra.length);
+    return { mode: 'schema', items };
+  }
+  return { mode: 'plan', ls: vis };
+}
+
+/* Constellation : la table la plus reliée au centre s'il y en a une nettement, les autres sur un cercle rangé par
+   groupe puis par nom. */
+function constellation(ls, center, title, pre, extra = []) {
+  const keys = [...new Set([...extra, ...ls.flatMap(r => [r.from.table, r.to.table]).filter(tableVisible)])];
+  if (center && !keys.includes(center)) keys.unshift(center);
+  if (!keys.length) return { nodes: [], edges: [], target: new Map(), titles: [{ x: 0, y: 0, text: title }], R: 120 };
+  const deg = new Map(keys.map(k => [k, 0]));
+  for (const r of ls) for (const k of new Set([r.from.table, r.to.table])) if (deg.has(k)) deg.set(k, deg.get(k) + 1);
+  let hub = center;
+  if (!hub && keys.length >= 4) {
+    const o = [...keys].sort((a, b) => deg.get(b) - deg.get(a));
+    if (deg.get(o[0]) > deg.get(o[1])) hub = o[0];
+  }
+  const ring = keys.filter(k => k !== hub).sort((a, b) => groupIndex(a) - groupIndex(b) || a.localeCompare(b));
+  const n = ring.length;
+  const span = ring.reduce((t, k) => { const c = cardSize(k); return t + Math.max(c.w, c.h) + 50; }, 0);
+  const core = hub ? Math.hypot(cardSize(hub).w, cardSize(hub).h) / 2 : 0;
+  const R = Math.max(hub ? 230 : 130, span / (2 * Math.PI), core + Math.max(0, ...ring.map(k => cardSize(k).h)) + 60);
+  const keyOf = k => `${pre}t:${k}`;
+  const target = new Map();
+  if (hub) target.set(keyOf(hub), { x: 0, y: 0 });
+  ring.forEach((k, i) => {
+    const a = -Math.PI / 2 + (2 * Math.PI * i) / (n || 1);
+    target.set(keyOf(k), n === 1 && !hub ? { x: 0, y: 0 } : { x: R * Math.cos(a), y: R * Math.sin(a) });
+  });
+  const edges = edgesFor(ls.filter(r => deg.has(r.from.table) && deg.has(r.to.table)), keyOf);
+  const nodes = keys.map(k => ({ key: keyOf(k), tk: k, gid: groupName(k), center: k === hub }));
+  const top = Math.min(...[...target.values()].map(p => p.y)) - Math.max(...keys.map(k => cardSize(k).h)) / 2;
+  return { nodes, edges, target, titles: [{ x: 0, y: top - 34, text: `${title} — ${plural(ls.length, 'référence')}` }], R: R + 140 };
+}
+
+/* Focus table ou groupe, lu de gauche à droite : la table choisie (ou la plus reliée) au centre, les tables qui
+   portent les clés étrangères à gauche, les tables référencées à droite ; un-à-un et plusieurs-à-plusieurs suivent
+   leurs correspondants. Colonnes ordonnées par barycentres, cartes agrandies selon le nombre de références, traits
+   courbés pour contourner les cartes. */
+const FLOW_GAP_X = 190, FLOW_GAP_Y = 30;
+
+function flowLayout(ls, title, pre, center = null, extra = []) {
+  const keyOf = k => `${pre}t:${k}`;
+  const tables = [...new Set([...ls.flatMap(r => [r.from.table, r.to.table]).filter(tableVisible), ...extra])];
+  if (center && !tables.includes(center)) tables.unshift(center);
+  if (!tables.length) return constellation(ls, center, title, pre, extra);
+  const deg = new Map(tables.map(k => [k, 0])), out = new Map(tables.map(k => [k, 0])), inn = new Map(tables.map(k => [k, 0]));
+  const links = ls.filter(r => deg.has(r.from.table) && deg.has(r.to.table));
+  for (const r of links) {
+    for (const k of new Set([r.from.table, r.to.table])) deg.set(k, deg.get(k) + 1);
+    if (r.rel === '>' && r.from.table !== r.to.table) { out.set(r.from.table, out.get(r.from.table) + 1); inn.set(r.to.table, inn.get(r.to.table) + 1); }
+  }
+  const score = k => (out.get(k) + inn.get(k) ? (inn.get(k) - out.get(k)) / (out.get(k) + inn.get(k)) : 0);
+  // À égalité de références, le centre revient à la table la plus équilibrée, puis à l'ordre des groupes.
+  const hub = center || [...tables].sort((a, b) => deg.get(b) - deg.get(a) || Math.abs(score(a)) - Math.abs(score(b)) || groupIndex(a) - groupIndex(b) || a.localeCompare(b))[0];
+
+  const nb = new Map(tables.map(k => [keyOf(k), []]));
+  const peers = new Map(tables.map(k => [k, new Set()]));
+  for (const r of links) {
+    if (r.from.table === r.to.table) continue;
+    nb.get(keyOf(r.from.table)).push(keyOf(r.to.table));
+    nb.get(keyOf(r.to.table)).push(keyOf(r.from.table));
+    peers.get(r.from.table).add(r.to.table);
+    peers.get(r.to.table).add(r.from.table);
+  }
+  const dist = new Map([[hub, 0]]);
+  for (let queue = [hub]; queue.length;) {
+    const next = [];
+    for (const k of queue) for (const q of peers.get(k)) if (!dist.has(q)) { dist.set(q, dist.get(k) + 1); next.push(q); }
+    queue = next;
+  }
+  // Colonne = côté × distance au centre. Côté : sources à gauche, tables référencées à droite pour les
+  // correspondants directs ; au-delà, celui des voisins plus proches du centre, pour qu'aucun trait ne repasse
+  // par-dessus lui. Tables sans lien avec le centre (groupe) : côté le moins rempli.
+  const col = new Map([[keyOf(hub), 0]]);
+  const sideOf = k => Math.sign(col.get(keyOf(k)) || 0);
+  const lighter = () => ([...col.values()].filter(c => c < 0).length <= [...col.values()].filter(c => c > 0).length ? -1 : 1);
+  const ordered = tables.filter(k => k !== hub).sort((a, b) => (dist.get(a) ?? 1) - (dist.get(b) ?? 1) || Math.abs(score(b)) - Math.abs(score(a)) || deg.get(b) - deg.get(a));
+  for (const k of ordered.filter(q => (dist.get(q) ?? 1) === 1)) {
+    const lean = [...peers.get(k)].reduce((t, q) => t + sideOf(q), 0);
+    col.set(keyOf(k), score(k) ? Math.sign(score(k)) : lean ? Math.sign(lean) : lighter());
+  }
+  for (const k of ordered.filter(q => !col.has(keyOf(q)))) {
+    const d = dist.get(k) ?? 1;
+    const lean = [...peers.get(k)].filter(q => col.has(keyOf(q)) && (dist.get(q) ?? 1) < d).reduce((t, q) => t + sideOf(q), 0);
+    col.set(keyOf(k), (lean ? Math.sign(lean) : score(k) ? Math.sign(score(k)) : lighter()) * d);
+  }
+
+  // Taille des cartes selon le nombre de références.
+  const scale = new Map(tables.map(k => {
+    const base = clamp(0.95 + 0.08 * deg.get(k), 0.95, 1.4);
+    return [keyOf(k), k === hub ? Math.max(1.45, base + 0.1) : base];
+  }));
+  const size = new Map(tables.map(k => { const c = cardSize(k), z = scale.get(keyOf(k)); return [keyOf(k), { w: c.w * z, h: c.h * z }]; }));
+
+  // Abscisses : colonnes non vides, écartées selon leur carte la plus large.
+  const keys = [...col.keys()];
+  const cols = [...new Set(col.values())].sort((a, b) => a - b);
+  const half = c => Math.max(...keys.filter(k => col.get(k) === c).map(k => size.get(k).w)) / 2;
+  const xOf = new Map([[0, 0]]);
+  for (const dir of [-1, 1]) {
+    let prev = 0;
+    for (const c of cols.filter(v => v * dir > 0).sort((a, b) => Math.abs(a) - Math.abs(b))) {
+      xOf.set(c, xOf.get(prev) + dir * (half(prev) + half(c) + FLOW_GAP_X));
+      prev = c;
+    }
+  }
+
+  // Ordonnées : balayages par barycentre, chaque colonne empilée sans chevauchement autour de ses cibles.
+  const tkOf = new Map(tables.map(k => [keyOf(k), k]));
+  const y = new Map([[keyOf(hub), 0]]);
+  const members = c => keys.filter(k => col.get(k) === c);
+  const stack = (list, want) => {
+    const ys = [];
+    list.forEach((k, i) => {
+      const min = i ? ys[i - 1] + (size.get(list[i - 1]).h + size.get(k).h) / 2 + FLOW_GAP_Y : -Infinity;
+      ys.push(Math.max(want.get(k), min));
+    });
+    const shift = list.reduce((t, k, i) => t + want.get(k) - ys[i], 0) / list.length;
+    list.forEach((k, i) => y.set(k, ys[i] + shift));
+  };
+  for (const c of cols) {
+    if (c === 0) continue;
+    const list = members(c).sort((a, b) => groupIndex(tkOf.get(a)) - groupIndex(tkOf.get(b)) || tkOf.get(a).localeCompare(tkOf.get(b)));
+    stack(list, new Map(list.map(k => [k, 0])));
+  }
+  const order = cols.filter(c => c !== 0).sort((a, b) => Math.abs(a) - Math.abs(b));
+  for (let it = 0; it < 8; it++) {
+    for (const c of it % 2 ? [...order].reverse() : order) {
+      const want = new Map(members(c).map(k => {
+        const ns = nb.get(k).filter(n => y.has(n));
+        return [k, ns.length ? ns.reduce((t, n) => t + y.get(n), 0) / ns.length : y.get(k)];
+      }));
+      stack(members(c).sort((a, b) => want.get(a) - want.get(b) || y.get(a) - y.get(b)), want);
+    }
+  }
+
+  const target = new Map(keys.map(k => [k, { x: xOf.get(col.get(k)), y: y.get(k) }]));
+  const edges = edgesFor(links, keyOf);
+  // Un trait qui traverserait une carte est courbé du côté le plus dégagé.
+  const boxes = keys.map(k => { const t = target.get(k), z = size.get(k); return { k, x1: t.x - z.w / 2 - 8, x2: t.x + z.w / 2 + 8, y1: t.y - z.h / 2 - 8, y2: t.y + z.h / 2 + 8 }; });
+  for (const e of edges) {
+    if (e.kind !== 'd') continue;
+    const a = target.get(e.from), b = target.get(e.to), lo = target.get(e.lo), hi = target.get(e.hi);
+    const nx = -(hi.y - lo.y), ny = hi.x - lo.x, nl = Math.hypot(nx, ny) || 1;
+    const hits = off => {
+      const cx = (a.x + b.x) / 2 + (nx / nl) * off * 2, cy = (a.y + b.y) / 2 + (ny / nl) * off * 2;
+      let n = 0;
+      for (let i = 1; i < 20; i++) {
+        const t = i / 20, u = 1 - t, px = u * u * a.x + 2 * u * t * cx + t * t * b.x, py = u * u * a.y + 2 * u * t * cy + t * t * b.y;
+        n += boxes.filter(q => q.k !== e.from && q.k !== e.to && px > q.x1 && px < q.x2 && py > q.y1 && py < q.y2).length;
+      }
+      return n;
+    };
+    const base = e.offset;
+    let best = base, bestHits = hits(base);
+    for (const d of [30, -30, 60, -60, 95, -95, 140, -140]) {
+      if (!bestHits) break;
+      const n = hits(base + d);
+      if (n < bestHits) { best = base + d; bestHits = n; }
+    }
+    e.offset = best;
+  }
+  const nodes = tables.map(k => ({ key: keyOf(k), tk: k, gid: groupName(k), center: k === hub, scale: scale.get(keyOf(k)) }));
+  const top = Math.min(...boxes.map(q => q.y1));
+  const extent = Math.max(...boxes.map(q => Math.max(Math.abs(q.x1), Math.abs(q.x2), Math.abs(q.y1), Math.abs(q.y2))));
+  return { nodes, edges, target, titles: [{ x: 0, y: top - 30, text: `${title} — ${plural(ls.length, 'référence')}` }], R: extent };
+}
+
+function buildScene(spec) {
+  cardCache = new Map();
+  if (spec.mode === 'plan') {
+    const nodes = state.tables.map(tableKey).filter(tableVisible).map(k => ({ key: k, tk: k, gid: groupName(k), center: false }));
+    const sc = { mode: 'plan', nodes, edges: edgesFor(spec.ls, k => k), titles: [], refs: spec.ls };
+    sc.target = planTargets(sc);
+    return sc;
+  }
+  const items = spec.items.length ? spec.items : [{ ls: [], center: null, extra: [], title: 'Aucune table pour cette sélection' }];
+  const flow = spec.mode === 'table' || spec.mode === 'group';
+  const parts = items.map((it, i) => (flow ? flowLayout(it.ls, it.title, `k${i}|`, it.center, it.extra) : constellation(it.ls, it.center, it.title, `k${i}|`, it.extra)));
+  // Grille serrée : chaque colonne et chaque ligne prend la taille de sa plus grande constellation.
+  const cols = Math.ceil(Math.sqrt(parts.length));
+  const colW = [], rowH = [];
+  parts.forEach((p, i) => {
+    const c = i % cols, r = Math.floor(i / cols);
+    colW[c] = Math.max(colW[c] || 0, 2 * p.R + 120);
+    rowH[r] = Math.max(rowH[r] || 0, 2 * p.R + 100);
+  });
+  const offset = (sizes, i) => sizes.slice(0, i).reduce((t, x) => t + x, 0) + sizes[i] / 2;
+  const sc = { mode: spec.mode, nodes: [], edges: [], titles: [], target: new Map(), refs: [...new Set(items.flatMap(it => it.ls))] };
+  parts.forEach((p, i) => {
+    const ox = parts.length > 1 ? offset(colW, i % cols) : 0, oy = parts.length > 1 ? offset(rowH, Math.floor(i / cols)) : 0;
+    sc.nodes.push(...p.nodes);
+    sc.edges.push(...p.edges);
+    sc.titles.push(...p.titles.map(t => ({ ...t, x: t.x + ox, y: t.y + oy })));
+    for (const [k, v] of p.target) sc.target.set(k, { x: v.x + ox, y: v.y + oy });
+  });
+  return sc;
+}
+
+/* Plan d'ensemble : les tables d'un groupe en grille serrée (lignes de la hauteur de leur plus grande carte), les
+   groupes sur une grille où les plus liés sont voisins. Une carte déplacée à la main garde sa place (planPos). */
+const CELL_GAP_X = 22, CELL_GAP_Y = 26, GROUP_PAD = 16, GROUP_GAP_X = 130, GROUP_GAP_Y = 100;
+
+function planTargets(sc) {
+  const byGroup = new Map();
+  for (const n of sc.nodes) {
+    if (!byGroup.has(n.gid)) byGroup.set(n.gid, []);
+    byGroup.get(n.gid).push(n);
+  }
+  const deg = new Map();
+  for (const e of sc.edges) for (const k of new Set([e.from, e.to])) deg.set(k, (deg.get(k) || 0) + 1);
+
+  const blocks = [...state.groups.map(g => g.name), ''].filter(gid => byGroup.has(gid)).map(gid => {
+    const ns = byGroup.get(gid).sort((a, b) => (deg.get(b.key) || 0) - (deg.get(a.key) || 0) || a.tk.localeCompare(b.tk));
+    const sizes = ns.map(n => cardSize(n.tk));
+    const cw = Math.max(...sizes.map(z => z.w)) + CELL_GAP_X;
+    const avgH = sizes.reduce((t, z) => t + z.h, 0) / sizes.length + CELL_GAP_Y;
+    const cols = Math.max(1, Math.round(Math.sqrt((ns.length * avgH) / cw * 1.6)));
+    const rowH = [];
+    ns.forEach((n, k) => { const r = Math.floor(k / cols); rowH[r] = Math.max(rowH[r] || 0, sizes[k].h + CELL_GAP_Y); });
+    return { gid, ns, sizes, cols, cw, rowH, w: Math.min(cols, ns.length) * cw, h: rowH.reduce((t, x) => t + x, 0) };
+  });
+
+  // Placement des groupes : les plus reliés d'abord, chacun sur la case qui le rapproche le plus de ses correspondants.
+  const gi = new Map(blocks.map((b, i) => [b.gid, i]));
+  const W = blocks.map(() => blocks.map(() => 0));
+  for (const r of sc.refs) {
+    const a = gi.get(groupName(r.from.table)), b = gi.get(groupName(r.to.table));
+    if (a != null && b != null && a !== b) { W[a][b]++; W[b][a]++; }
+  }
+  const n = blocks.length;
+  const gc = Math.max(1, Math.ceil(Math.sqrt(n))), gr = Math.max(1, Math.ceil(n / gc));
+  const slots = [];
+  for (let r = 0; r < gr; r++) for (let c = 0; c < gc; c++) slots.push({ r, c, d: Math.abs(r - (gr - 1) / 2) + Math.abs(c - (gc - 1) / 2) });
+  const at = new Map(), used = new Set();
+  const total = i => W[i].reduce((t, x) => t + x, 0);
+  for (const i of blocks.map((_, i) => i).sort((a, b) => total(b) - total(a) || a - b)) {
+    let best = -1, cost = Infinity;
+    slots.forEach((slot, k) => {
+      if (used.has(k)) return;
+      let c = slot.d * 0.01;
+      for (const [j, t] of at) c += W[i][j] * (Math.abs(slot.r - t.r) + Math.abs(slot.c - t.c));
+      if (c < cost) { cost = c; best = k; }
+    });
+    used.add(best);
+    at.set(i, slots[best]);
+  }
+  const colW = Array(gc).fill(0), rowH = Array(gr).fill(0);
+  for (const [i, slot] of at) { colW[slot.c] = Math.max(colW[slot.c], blocks[i].w); rowH[slot.r] = Math.max(rowH[slot.r], blocks[i].h); }
+  const starts = (sizes, gap) => sizes.map((_, k) => sizes.slice(0, k).reduce((t, x) => t + x + gap, 0));
+  const colX = starts(colW, GROUP_GAP_X), rowY = starts(rowH, GROUP_GAP_Y);
+  const offX = (colX[gc - 1] + colW[gc - 1]) / 2, offY = (rowY[gr - 1] + rowH[gr - 1]) / 2;
+
+  const target = new Map();
+  for (const [i, slot] of at) {
+    const b = blocks[i];
+    const cx = colX[slot.c] + colW[slot.c] / 2 - offX, top = rowY[slot.r] + (rowH[slot.r] - b.h) / 2 - offY;
+    b.ns.forEach((node, k) => {
+      const row = Math.floor(k / b.cols), inRow = Math.min(b.cols, b.ns.length - row * b.cols);
+      const y0 = top + b.rowH.slice(0, row).reduce((t, x) => t + x, 0);
+      target.set(node.key, { x: cx - b.w / 2 + ((Math.min(b.cols, b.ns.length) - inRow) * b.cw) / 2 + b.cw * (k % b.cols + 0.5), y: y0 + b.sizes[k].h / 2 });
+    });
+  }
+  for (const [k, p] of planPos) if (target.has(k)) target.set(k, { ...p });
+  return target;
+}
+
+function tableNode(n) {
+  const c = cardSize(n.tk);
+  const { t, w, h: hh } = c;
+  const scale = n.scale || 1;
+  const x0 = -w / 2, y0 = -hh / 2;
+  const rowY = i => y0 + CARD.head + CARD.pad / 2 + 2 + CARD.row * i + 12;
+  const g = s('g', { class: 'node' + (n.center ? ' center' : ''), 'data-key': n.key, 'data-tk': n.tk },
+    s('title', {}, [n.tk, plural(t.columns.length, 'colonne'), n.gid && 'groupe ' + n.gid, t.note].filter(Boolean).join(' — ')),
+    s('g', { transform: scale !== 1 ? `scale(${scale})` : null },
+      s('rect', { class: 'card', x: x0, y: y0, width: w, height: hh, rx: 5 }),
+      c.rows.length || c.more ? [
+        s('path', { class: 'head', d: `M${x0 + 0.6},${y0 + CARD.head} V${y0 + 5} q0,-4.4 4.4,-4.4 H${-x0 - 5} q4.4,0 4.4,4.4 V${y0 + CARD.head} Z` }),
+        s('line', { class: 'rule', x1: x0, x2: -x0, y1: y0 + CARD.head, y2: y0 + CARD.head }),
+      ] : null,
+      s('rect', { x: x0 + 3, y: y0 + 4, width: 3, height: (c.rows.length || c.more ? CARD.head : hh) - 8, rx: 1.5, fill: tableColor(t) }),
+      s('text', { class: 'tname', x: x0 + CARD.padX + 2, y: y0 + 17 }, t.schema ? s('tspan', { class: 'tschema' }, t.schema + '.') : null, c.name),
+      ui.cards === 'none' ? s('text', { class: 'ccount', x: -x0 - CARD.padX, y: y0 + 17 }, t.columns.length) : null,
+      c.rows.map((r, i) => [
+        r.tag ? s('text', { class: 'ctag' + (r.tag === 'PK' ? ' pk' : ''), x: x0 + CARD.padX, y: rowY(i) }, r.tag) : null,
+        s('text', { class: 'cname', x: x0 + CARD.padX + 22, y: rowY(i) }, r.name),
+        s('text', { class: 'ctype', x: -x0 - CARD.padX, y: rowY(i) }, r.type),
+      ]),
+      c.more ? s('text', { class: 'cmore', x: x0 + CARD.padX + 22, y: rowY(c.rows.length) }, c.more) : null));
+  g.w = w * scale;
+  g.h = hh * scale;
+  return g;
+}
+
+function edgeElement(e) {
+  const r = e.r, rel = relOf(r);
+  const marker = `url(#arrow-${rel.cls})`;
+  const line = s('path', { class: 'line', 'marker-end': marker, 'marker-start': r.rel !== '>' ? marker : null });
+  const g = s('g', { class: `edge rel-${rel.cls}${refNullable(r) ? ' nullable' : ''}`, 'data-rid': r.id },
+    s('title', {}, `${r.name ? r.name + ' · ' : ''}${refText(r)} — ${rel.name}`), s('path', { class: 'hit' }), line);
+  const labels = [];
+  const label = (text, t) => labels.push({ el: s('text', { class: 'elabel' }, text), t });
+  if (ui.labels === 'cols') { label(r.from.columns.join(', '), 0.16); label(r.to.columns.join(', '), 0.84); }
+  else if (ui.labels === 'names') label(r.name || rel.label, 0.5);
+  return { e, g, line, hit: g.querySelector('.hit'), labels };
+}
+
+function renderSceneEls() {
+  hullEls = scene.mode !== 'plan' ? [] : state.groups
+    .filter(g => scene.nodes.some(n => n.gid === g.name))
+    .map(g => ({
+      gid: g.name,
+      shape: s('rect', { class: 'hull', rx: 8, fill: groupColor(g), stroke: groupColor(g), 'data-gid': g.name }),
+      label: s('text', { class: 'hull-label' }, s('tspan', { fill: groupColor(g) }, '■ '), g.name.toUpperCase()),
+    }));
+  fill(layers.deco, hullEls.map(x => x.shape), scene.titles.map(t => s('text', { class: 'scene-title', x: t.x, y: t.y }, t.text)));
+  fill(layers.tags, hullEls.map(x => x.label));
+  nodeEls = new Map(scene.nodes.map(n => [n.key, tableNode(n)]));
+  fill(layers.nodes, [...nodeEls.values()]);
+  edgeEls = scene.edges.map(edgeElement);
+  fill(layers.edges, edgeEls.map(x => x.g));
+  fill(layers.labels, edgeEls.map(x => x.labels.map(lb => lb.el)));
+
+  const ph = $('placeholder');
+  ph.hidden = state.tables.length > 0;
+  fill(ph, h('strong', {}, 'Aucune table'),
+    h('span', {}, ui.edit ? 'Double-cliquez ici pour créer une table, importez un fichier .dbml ou collez du DBML dans l’onglet DBML.' : 'Déverrouillez le cadenas (E) pour importer un fichier .dbml ou créer des tables.'));
+  applyHighlight();
+}
+
+const toward = (p, tx, ty, d) => {
+  const dx = tx - p.x, dy = ty - p.y, l = Math.hypot(dx, dy) || 1;
+  return { x: p.x + (dx / l) * d, y: p.y + (dy / l) * d };
+};
+
+// Distance du centre au bord de la carte dans la direction (dx, dy).
+function boundary(key, dx, dy) {
+  const n = nodeEls.get(key);
+  if (!n) return 14;
+  const l = Math.hypot(dx, dy) || 1, ux = Math.abs(dx / l), uy = Math.abs(dy / l);
+  return Math.min(ux ? n.w / 2 / ux : Infinity, uy ? n.h / 2 / uy : Infinity);
+}
+
+// Géométrie d'un trait : chemin SVG et point à l'abscisse curviligne t (pour les étiquettes).
+function edgeGeom(e) {
+  if (e.kind === 'self') {
+    const p = pos.get(e.from), n = nodeEls.get(e.from);
+    const x = p.x + n.w / 2, L = 46 + 18 * e.loop, dy = Math.min(n.h / 2 - 6, 10 + 6 * e.loop);
+    const P = [{ x, y: p.y - dy }, { x: x + L, y: p.y - dy - L * 0.7 }, { x: x + L, y: p.y + dy + L * 0.7 }, { x: x + 1, y: p.y + dy }];
+    const at = t => { const u = 1 - t; return ['x', 'y'].map(k => u * u * u * P[0][k] + 3 * u * u * t * P[1][k] + 3 * u * t * t * P[2][k] + t * t * t * P[3][k]); };
+    return { d: `M${P[0].x},${P[0].y} C${P[1].x},${P[1].y} ${P[2].x},${P[2].y} ${P[3].x},${P[3].y}`, at };
+  }
+  const a = pos.get(e.from), b = pos.get(e.to), lo = pos.get(e.lo), hi = pos.get(e.hi);
+  // Normale calculée dans un sens canonique pour que les traits parallèles ne se croisent pas.
+  const nx = -(hi.y - lo.y), ny = hi.x - lo.x, nl = Math.hypot(nx, ny) || 1;
+  const cx = (a.x + b.x) / 2 + (nx / nl) * e.offset * 2;
+  const cy = (a.y + b.y) / 2 + (ny / nl) * e.offset * 2;
+  const p0 = toward(a, cx, cy, boundary(e.from, cx - a.x, cy - a.y) + (e.r.rel !== '>' ? 3 : 1));
+  const p1 = toward(b, cx, cy, boundary(e.to, cx - b.x, cy - b.y) + 3);
+  const at = t => { const u = 1 - t; return [u * u * p0.x + 2 * u * t * cx + t * t * p1.x, u * u * p0.y + 2 * u * t * cy + t * t * p1.y]; };
+  return { d: `M${p0.x},${p0.y} Q${cx},${cy} ${p1.x},${p1.y}`, at };
+}
+
+// Cadre d'un groupe : rectangle ajusté aux cartes de ses tables.
+function hullRect(gid, at) {
+  const boxes = scene.nodes.filter(n => n.gid === gid).map(n => {
+    const p = at(n.key), el = nodeEls.get(n.key);
+    return [p.x - el.w / 2, p.y - el.h / 2, p.x + el.w / 2, p.y + el.h / 2];
+  });
+  return {
+    x1: Math.min(...boxes.map(b => b[0])) - GROUP_PAD, y1: Math.min(...boxes.map(b => b[1])) - GROUP_PAD,
+    x2: Math.max(...boxes.map(b => b[2])) + GROUP_PAD, y2: Math.max(...boxes.map(b => b[3])) + GROUP_PAD,
+  };
+}
+
+function drawPositions() {
+  for (const [k, g] of nodeEls) { const p = pos.get(k); g.setAttribute('transform', `translate(${p.x},${p.y})`); }
+  for (const x of edgeEls) {
+    const G = edgeGeom(x.e);
+    x.line.setAttribute('d', G.d);
+    x.hit.setAttribute('d', G.d);
+    // Trait trop court pour deux étiquettes lisibles : elles restent dans l'infobulle.
+    const [ax, ay] = G.at(0), [bx, by] = G.at(1);
+    const short = x.e.kind === 'd' && x.labels.length > 1 && Math.hypot(bx - ax, by - ay) < 150;
+    for (const lb of x.labels) {
+      lb.el.style.display = short ? 'none' : '';
+      const [lx, ly] = G.at(x.e.kind === 'self' ? (lb.t < 0.5 ? 0.12 : 0.88) : lb.t);
+      lb.el.setAttribute('x', lx + (x.e.kind === 'self' ? 18 : 0));
+      lb.el.setAttribute('y', ly + 3);
+    }
+  }
+  for (const x of hullEls) {
+    const r = hullRect(x.gid, k => pos.get(k));
+    x.shape.setAttribute('x', r.x1); x.shape.setAttribute('y', r.y1);
+    x.shape.setAttribute('width', r.x2 - r.x1); x.shape.setAttribute('height', r.y2 - r.y1);
+    x.label.setAttribute('x', r.x1 + 2); x.label.setAttribute('y', r.y1 - 8);
+  }
+}
+
+const currentTargets = () => new Map([...pos].map(([k, p]) => [k, { x: p.x, y: p.y }]));
+
+function fitCamera(targets) {
+  const W = svg.clientWidth, H = svg.clientHeight;
+  if (!W || !scene) return { ...view };
+  const boxes = [];
+  for (const n of scene.nodes) {
+    const t = targets.get(n.key), el = nodeEls.get(n.key);
+    boxes.push([t.x - el.w / 2, t.y - el.h / 2, t.x + el.w / 2 + (scene.edges.some(e => e.kind === 'self' && e.from === n.key) ? 70 : 0), t.y + el.h / 2]);
+  }
+  for (const t of scene.titles) boxes.push([t.x - 200, t.y - 22, t.x + 200, t.y + 8]);
+  for (const x of hullEls) { const r = hullRect(x.gid, k => targets.get(k)); boxes.push([r.x1, r.y1 - 24, r.x2, r.y2]); }
+  if (!boxes.length) return { x: 0, y: 0, k: 1 };
+  let minX = Math.min(...boxes.map(b => b[0])), minY = Math.min(...boxes.map(b => b[1]));
+  let maxX = Math.max(...boxes.map(b => b[2])), maxY = Math.max(...boxes.map(b => b[3]));
+  // Focus : cadrage symétrique autour de la table centrale pour qu'elle reste au milieu de l'écran.
+  const hub = (scene.mode === 'table' || scene.mode === 'group') && scene.nodes.find(n => n.center);
+  if (hub) {
+    const c = targets.get(hub.key), dx = Math.max(c.x - minX, maxX - c.x), dy = Math.max(c.y - minY, maxY - c.y);
+    [minX, maxX, minY, maxY] = [c.x - dx, c.x + dx, c.y - dy, c.y + dy];
+  }
+  const k = clamp(Math.min(W / (maxX - minX + 60), H / (maxY - minY + 60)), 0.2, 1.4);
+  return { k, x: -((minX + maxX) / 2) * k, y: -((minY + maxY) / 2) * k };
+}
+
+function applyView() {
+  layers.viewport.setAttribute('transform', `translate(${svg.clientWidth / 2 + view.x},${svg.clientHeight / 2 + view.y}) scale(${view.k})`);
+  const z = $('zoom');
+  if (z) z.textContent = Math.round(view.k * 100) + ' %';
+}
+
+// Transition entre deux scènes : chaque élément glisse de sa position actuelle vers sa cible, caméra comprise.
+function tweenTo(targets, cam) {
+  cancelAnimationFrame(tweenRaf);
+  const from = currentTargets();
+  const cam0 = { ...view };
+  const dur = reduceMotion() ? 0 : 560;
+  const t0 = performance.now();
+  const step = now => {
+    const t = dur ? Math.min(1, (now - t0) / dur) : 1;
+    const e = t < .5 ? 4 * t * t * t : 1 - Math.pow(-2 * t + 2, 3) / 2;
+    for (const [k, to] of targets) {
+      const p = pos.get(k), f = from.get(k) || to;
+      if (!p) continue;
+      p.x = f.x + (to.x - f.x) * e;
+      p.y = f.y + (to.y - f.y) * e;
+    }
+    if (cam) {
+      view.k = cam0.k + (cam.k - cam0.k) * e;
+      view.x = cam0.x + (cam.x - cam0.x) * e;
+      view.y = cam0.y + (cam.y - cam0.y) * e;
+      applyView();
+    }
+    drawPositions();
+    if (t < 1) tweenRaf = requestAnimationFrame(step);
+  };
+  step(t0);
+}
+
+const recenter = () => tweenTo(scene.target, fitCamera(scene.target));
+
+function renderGraph() {
+  const spec = sceneSpec();
+  const identity = JSON.stringify([spec.mode, ui.focus, ui.group, ui.schema]);
+  const changed = identity !== sceneIdentity;
+  // Point de départ de l'animation : position actuelle de la même table dans la scène précédente.
+  const prev = new Map(pos);
+  const prevByTk = new Map();
+  if (scene) for (const n of scene.nodes) if (!prevByTk.has(n.tk) && pos.has(n.key)) prevByTk.set(n.tk, pos.get(n.key));
+  scene = buildScene(spec);
+  sceneIdentity = identity;
+  pos.clear();
+  for (const n of scene.nodes) {
+    const t = scene.target.get(n.key);
+    const p = changed ? prevByTk.get(n.tk) || t : prev.get(n.key) || prevByTk.get(n.tk) || t;
+    pos.set(n.key, { x: p.x, y: p.y });
+  }
+  renderSceneEls();
+  applyView();
+  drawPositions();
+  if (firstFit) {
+    Object.assign(view, fitCamera(scene.target));
+    for (const [k, t] of scene.target) Object.assign(pos.get(k), t);
+    applyView();
+    drawPositions();
+    firstFit = !svg.clientWidth;
+  } else if (changed) {
+    tweenTo(scene.target, fitCamera(scene.target));
+  }
+}
+
+function toWorld(e) {
+  const r = svg.getBoundingClientRect();
+  return { x: (e.clientX - r.left - r.width / 2 - view.x) / view.k, y: (e.clientY - r.top - r.height / 2 - view.y) / view.k };
+}
+
+// Sélection : l'élément choisi et ses voisins restent nets, le reste passe à 13 % d'opacité.
+function applyHighlight() {
+  if (!scene) return;
+  const sel = ui.selected;
+  let tks = null, rids = null;
+  const around = seed => {
+    tks = new Set(seed);
+    rids = new Set();
+    for (const r of scene.refs) if (seed.includes(r.from.table) || seed.includes(r.to.table)) { rids.add(r.id); tks.add(r.from.table); tks.add(r.to.table); }
+  };
+  if (sel?.type === 'table') around([sel.id]);
+  else if (sel?.type === 'group') around(groupByName(sel.id)?.tables || []);
+  else if (sel?.type === 'ref') {
+    const r = refById(sel.id);
+    tks = new Set(r ? [r.from.table, r.to.table] : []);
+    rids = new Set(r ? [r.id] : []);
+  }
+  for (const n of scene.nodes) {
+    const g = nodeEls.get(n.key);
+    g.classList.toggle('dim', !!tks && !tks.has(n.tk));
+    g.classList.toggle('selected', sel?.type === 'table' && sel.id === n.tk && !n.center);
+  }
+  for (const x of edgeEls) {
+    const off = !!rids && !rids.has(x.e.r.id);
+    x.g.classList.toggle('dim', off);
+    x.g.classList.toggle('selected', sel?.type === 'ref' && sel.id === x.e.r.id);
+    x.labels.forEach(lb => lb.el.classList.toggle('dim', off));
+  }
+  for (const x of hullEls) x.shape.classList.toggle('focus', sel?.type === 'group' && sel.id === x.gid);
+}
+
+/* Souris dans le graphe. Lecture seule : glisser une carte la déplace, glisser le fond déplace la vue.
+   Édition : glisser d'une table à une autre crée une référence (Maj + glisser déplace la carte), double-cliquer
+   sur le fond crée une table (dans le groupe sous le pointeur), double-cliquer sur une carte la modifie. */
+let drag = null;
+let clickTimer = 0;
+const nodeAt = e => document.elementFromPoint(e.clientX, e.clientY)?.closest('#graph .node');
+
+// Préremplissage d'une référence tracée de a vers b : colonnes de la clé primaire de b, et colonnes de a qui
+// portent leur nom habituel de clé étrangère (commande_id, commandeId…) s'il y en a.
+function refPreset(a, b) {
+  const ta = tableByKey(a), tb = tableByKey(b);
+  const pk = tb.columns.filter(c => c.pk).map(c => c.name);
+  const to = pk.length ? pk : tb.columns.slice(0, 1).map(c => c.name);
+  const stems = [...new Set([tb.name, tb.name.replace(/ies$/, 'y').replace(/s$/, '')])];
+  const guess = col => {
+    const names = stems.flatMap(st => [`${st}_${col}`, `${st}${col[0].toUpperCase()}${col.slice(1)}`]);
+    return ta.columns.find(c => names.includes(c.name) && !(a === b && c.name === col))?.name;
+  };
+  const from = to.map(guess);
+  return { from: { table: a, columns: from.every(Boolean) ? from : [] }, to: { table: b, columns: to } };
+}
+
+svg.addEventListener('pointerdown', e => {
+  if (e.button !== 0) return;
+  const item = e.target.closest('.node');
+  const edge = e.target.closest('.edge');
+  const hull = e.target.closest('.hull');
+  try { svg.setPointerCapture(e.pointerId); } catch (_) { /* pointeur synthétique */ }
+  cancelAnimationFrame(tweenRaf);
+  drag = {
+    key: item?.dataset.key, tk: item?.dataset.tk, rid: edge?.dataset.rid, gid: hull?.dataset.gid,
+    sx: e.clientX, sy: e.clientY, vx: view.x, vy: view.y, moved: false,
+    link: ui.edit && !!item && !e.shiftKey,
+  };
+  if (drag.link) {
+    drag.line = s('path', { class: 'draft-link' });
+    layers.tags.append(drag.line);
+  } else if (!drag.key) svg.classList.add('panning');
+});
+svg.addEventListener('pointermove', e => {
+  if (!drag) return;
+  const dx = e.clientX - drag.sx, dy = e.clientY - drag.sy;
+  if (Math.hypot(dx, dy) > 3) drag.moved = true;
+  if (!drag.moved) return;
+  if (drag.link) {
+    const from = pos.get(drag.key), to = toWorld(e);
+    drag.line.setAttribute('d', `M${from.x},${from.y} L${to.x},${to.y}`);
+    const target = nodeAt(e);
+    for (const g of nodeEls.values()) g.classList.toggle('drop', g === target);
+  } else if (drag.key) {
+    Object.assign(pos.get(drag.key), toWorld(e));
+    if (scene.mode === 'plan') planPos.set(drag.key, toWorld(e));
+    drawPositions();
+  } else {
+    view.x = drag.vx + dx;
+    view.y = drag.vy + dy;
+    applyView();
   }
 });
+function endDrag(e) {
+  if (!drag) return;
+  svg.classList.remove('panning');
+  if (drag.link) {
+    drag.line.remove();
+    for (const g of nodeEls.values()) g.classList.remove('drop');
+    // Relâcher sur une carte (la même comprise : référence réflexive) ouvre l'éditeur de référence prérempli.
+    const target = drag.moved && e?.type === 'pointerup' ? nodeAt(e)?.dataset.tk : null;
+    if (target) {
+      const [a, b] = [drag.tk, target];
+      drag = null;
+      openRefEditor(null, refPreset(a, b));
+      return;
+    }
+  }
+  if (!drag.moved) {
+    clearTimeout(clickTimer);
+    if (drag.tk && ui.edit) { const tk = drag.tk; clickTimer = setTimeout(() => focusTable(tk), 260); }
+    else if (drag.tk) focusTable(drag.tk);
+    else if (drag.rid) select({ type: 'ref', id: drag.rid });
+    else if (drag.gid) select({ type: 'group', id: drag.gid });
+    else select(null);
+  }
+  drag = null;
+}
+svg.addEventListener('pointerup', endDrag);
+svg.addEventListener('pointercancel', endDrag);
+svg.addEventListener('dblclick', e => {
+  const tk = e.target.closest('.node')?.dataset.tk;
+  if (ui.edit && tk) {
+    clearTimeout(clickTimer);
+    openTableEditor(tableByKey(tk));
+    return;
+  }
+  if (!ui.edit || e.target.closest('.node, .edge')) return;
+  const at = toWorld(e);
+  const gid = e.target.closest('.hull')?.dataset.gid || '';
+  openTableEditor(null, { group: gid }, key => {
+    // Hors d'un groupe, la nouvelle table reste là où l'on a double-cliqué ; dans un groupe, elle rejoint sa grille.
+    if (!gid && scene?.mode === 'plan') planPos.set(key, at);
+    if (scene?.mode !== 'plan') { ui.focus = null; ui.group = ''; ui.schema = ''; }
+    ui.selected = { type: 'table', id: key };
+  });
+});
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  cancelAnimationFrame(tweenRaf);
+  const r = svg.getBoundingClientRect();
+  const mx = e.clientX - r.left - r.width / 2, my = e.clientY - r.top - r.height / 2;
+  const k = clamp(view.k * Math.exp(-e.deltaY * 0.0015), 0.15, 4);
+  view.x = mx - (mx - view.x) * (k / view.k);
+  view.y = my - (my - view.y) * (k / view.k);
+  view.k = k;
+  applyView();
+}, { passive: false });
+
+/* ---------- Modifications (refusées hors édition) ---------- */
+
+// Renomme une table partout où sa clé apparaît (références, groupes, positions, interface).
+function moveTableKey(oldKey, newKey) {
+  if (oldKey === newKey) return;
+  for (const r of state.refs) for (const end of [r.from, r.to]) if (end.table === oldKey) end.table = newKey;
+  for (const g of state.groups) g.tables = g.tables.map(k => (k === oldKey ? newKey : k));
+  if (planPos.has(oldKey)) { planPos.set(newKey, planPos.get(oldKey)); planPos.delete(oldKey); }
+  if (ui.focus === oldKey) ui.focus = newKey;
+  if (ui.selected?.type === 'table' && ui.selected.id === oldKey) ui.selected.id = newKey;
+}
+
+function removeTable(key) {
+  if (!ui.edit) return;
+  const n = refsOf(key).length;
+  if (!confirm(`Supprimer la table ${key}${n ? ` et ses ${plural(n, 'référence')}` : ''} ?`)) return;
+  state.tables = state.tables.filter(t => tableKey(t) !== key);
+  state.refs = state.refs.filter(r => r.from.table !== key && r.to.table !== key);
+  for (const g of state.groups) g.tables = g.tables.filter(k => k !== key);
+  planPos.delete(key);
+  cleanUi();
+  commit();
+}
+function removeRef(id) {
+  if (!ui.edit) return;
+  const r = refById(id);
+  if (!r || !confirm(`Supprimer la référence ${refText(r)} ?`)) return;
+  state.refs = state.refs.filter(x => x !== r);
+  cleanUi();
+  commit();
+}
+function removeGroup(name) {
+  if (!ui.edit) return;
+  if (!confirm(`Supprimer le groupe ${name} ? Ses tables sont conservées, sans groupe.`)) return;
+  state.groups = state.groups.filter(g => g.name !== name);
+  ui.hideGroups.delete(name);
+  cleanUi();
+  commit();
+}
+
+/* ---------- Éditeurs ---------- */
+
+const field = (label, control) => h('label', { class: 'field' }, label, control);
+const IDENT_RE = /^[^\s."'`\[\]{}():,<>]+$/u;
+// Valeur par défaut : 'texte', `expression` ou valeur brute (nombre, true, null…).
+const defaultText = d => (d ? qval(d) : '');
+function parseDefault(text) {
+  const v = text.trim();
+  if (!v) return null;
+  if (/^'.*'$/s.test(v)) return { kind: 'str', v: v.slice(1, -1).replace(/\\(.)/g, '$1') };
+  if (/^`.*`$/s.test(v)) return { kind: 'expr', v: v.slice(1, -1) };
+  return { kind: 'raw', v };
+}
+
+function openDialog(title, body, onSubmit, narrow) {
+  const dialog = $('editor'), form = $('editorForm');
+  const error = h('div', { class: 'form-error', role: 'alert' });
+  dialog.classList.toggle('narrow', !!narrow);
+  fill(form,
+    h('h2', {}, title),
+    body,
+    error,
+    h('div', { class: 'form-actions' },
+      h('button', { type: 'button', class: 'btn', onclick: () => dialog.close() }, 'Annuler'),
+      h('button', { type: 'submit', class: 'btn primary' }, 'Enregistrer')));
+  form.onsubmit = e => {
+    e.preventDefault();
+    const msg = onSubmit();
+    if (msg) { error.textContent = msg; return; }
+    dialog.close();
+  };
+  if (!dialog.open) dialog.showModal();
+  return form;
+}
+
+const COMMON_TYPES = ['integer', 'bigint', 'smallint', 'serial', 'decimal(10, 2)', 'numeric', 'real', 'boolean', 'varchar(255)', 'text', 'char(2)', 'uuid', 'date', 'timestamp', 'timestamptz', 'json', 'jsonb'];
+
+// `onCreate(clé)` est appelé après la création d'une table, avant le rendu.
+function openTableEditor(t, preset = {}, onCreate = null) {
+  if (!ui.edit) return;
+  const oldKey = t ? tableKey(t) : null;
+  const blank = () => ({ name: '', type: 'integer', pk: false, increment: false, notNull: false, unique: false, default: null, note: '', _orig: null });
+  const d = t
+    ? { name: t.name, schema: t.schema, color: t.color, note: t.note, group: groupName(oldKey), columns: t.columns.map(c => ({ ...c, default: c.default && { ...c.default }, _orig: c.name })) }
+    : { name: '', schema: preset.schema || '', color: '', note: '', group: preset.group || '', columns: [{ ...blank(), name: 'id', pk: true, increment: true }] };
+  const types = [...new Set([...COMMON_TYPES, ...state.enums.map(e => (e.schema ? e.schema + '.' : '') + e.name)])];
+  const wrap = h('div', { class: 'cols-wrap' });
+  const text = (value, oninput, attrs = {}) => h('input', { type: 'text', class: 'mono', value, oninput: e => oninput(e.target.value), ...attrs });
+  const check = (on, onchange, title) => h('input', { type: 'checkbox', checked: on, title, 'aria-label': title, onchange: e => onchange(e.target.checked) });
+  const move = (i, j) => { const [c] = d.columns.splice(i, 1); d.columns.splice(j, 0, c); drawCols(); };
+  function drawCols() {
+    fill(wrap, h('table', { class: 'cols' },
+      h('thead', {}, h('tr', {}, ['Nom', 'Type', 'PK', 'Inc.', 'Non nul', 'Unique', 'Défaut', 'Note', ''].map(x =>
+        h('th', { title: x === 'Défaut' ? "'texte', `expression` ou valeur brute (0, true, null)" : null }, x)))),
+      h('tbody', {}, d.columns.map((c, i) => h('tr', {},
+        h('td', {}, text(c.name, v => { c.name = v.trim(); }, { 'aria-label': 'Nom de la colonne', placeholder: 'nom' })),
+        h('td', {}, text(c.type, v => { c.type = v.trim(); }, { list: 'dbviz-types', 'aria-label': 'Type' })),
+        h('td', { class: 'cb' }, check(c.pk, v => { c.pk = v; }, 'Clé primaire')),
+        h('td', { class: 'cb' }, check(c.increment, v => { c.increment = v; }, 'Auto-incrément')),
+        h('td', { class: 'cb' }, check(c.notNull, v => { c.notNull = v; }, 'Non nul')),
+        h('td', { class: 'cb' }, check(c.unique, v => { c.unique = v; }, 'Unique')),
+        h('td', {}, text(defaultText(c.default), v => { c.default = parseDefault(v); }, { 'aria-label': 'Valeur par défaut' })),
+        h('td', {}, text(c.note, v => { c.note = v; }, { 'aria-label': 'Note' })),
+        h('td', { style: 'white-space:nowrap' },
+          h('button', { type: 'button', class: 'icon', title: 'Monter', disabled: i === 0, onclick: () => move(i, i - 1) }, '↑'),
+          h('button', { type: 'button', class: 'icon', title: 'Descendre', disabled: i === d.columns.length - 1, onclick: () => move(i, i + 1) }, '↓'),
+          h('button', { type: 'button', class: 'icon danger', title: 'Retirer la colonne', onclick: () => { d.columns.splice(i, 1); drawCols(); } }, '✕')))))));
+  }
+  drawCols();
+  const form = openDialog(t ? `Modifier la table ${oldKey}` : 'Nouvelle table', [
+    h('div', { class: 'fields' },
+      field('Nom', h('input', { class: 'mono', value: d.name, required: true, oninput: e => { d.name = e.target.value.trim(); } })),
+      field('Schéma', h('input', { class: 'mono', value: d.schema, placeholder: 'public', oninput: e => { d.schema = e.target.value.trim(); } })),
+      field('Groupe', h('select', { onchange: e => { d.group = e.target.value; } },
+        h('option', { value: '' }, '— aucun —'), state.groups.map(g => h('option', { value: g.name, selected: g.name === d.group }, g.name)))),
+      field('Couleur d’en-tête', h('input', { class: 'mono', value: d.color, placeholder: '#1f8a9e', oninput: e => { d.color = e.target.value.trim(); } }))),
+    field('Note', h('textarea', { oninput: e => { d.note = e.target.value; } }, d.note)),
+    h('div', { class: 'dhead' }, h('span', { class: 'label grow' }, 'Colonnes'),
+      h('button', { type: 'button', class: 'btn small', onclick: () => { d.columns.push(blank()); drawCols(); wrap.querySelector('tbody tr:last-child input')?.focus(); } }, '+ Colonne')),
+    wrap,
+    h('datalist', { id: 'dbviz-types' }, types.map(x => h('option', { value: x }))),
+  ], () => {
+    if (!d.name || !IDENT_RE.test(d.name)) return 'Nom de table invalide (pas d’espace, de point ni de guillemet).';
+    if (d.schema && !IDENT_RE.test(d.schema)) return 'Nom de schéma invalide.';
+    if (d.schema === 'public') d.schema = '';
+    const key = (d.schema ? d.schema + '.' : '') + d.name;
+    if (key !== oldKey && tableByKey(key)) return `La table ${key} existe déjà.`;
+    if (d.color && !/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(d.color)) return 'Couleur attendue au format #rgb ou #rrggbb.';
+    if (!d.columns.length) return 'Une table doit avoir au moins une colonne.';
+    const names = new Set();
+    for (const c of d.columns) {
+      if (!c.name || !IDENT_RE.test(c.name)) return `Nom de colonne invalide : « ${c.name} ».`;
+      if (names.has(c.name)) return `Colonne en double : ${c.name}.`;
+      names.add(c.name);
+      if (!c.type || /[\[\]\n{}]/.test(c.type)) return `Type invalide pour la colonne ${c.name}.`;
+    }
+    // Colonnes retirées : les références qui les utilisaient sont supprimées, après confirmation.
+    const renamed = new Map(d.columns.filter(c => c._orig).map(c => [c._orig, c.name]));
+    const broken = oldKey ? state.refs.filter(r => [r.from, r.to].some(end => end.table === oldKey && !end.columns.every(c => renamed.has(c)))) : [];
+    if (broken.length && !confirm(`${plural(broken.length, 'référence')} ${broken.length > 1 ? 'utilisaient' : 'utilisait'} une colonne retirée et ${broken.length > 1 ? 'seront supprimées' : 'sera supprimée'}. Continuer ?`)) return 'Enregistrement annulé.';
+    const columns = d.columns.map(({ _orig, ...c }) => c);
+    if (t) {
+      state.refs = state.refs.filter(r => !broken.includes(r));
+      for (const r of state.refs) for (const end of [r.from, r.to]) if (end.table === oldKey) end.columns = end.columns.map(c => renamed.get(c));
+      Object.assign(t, { name: d.name, schema: d.schema, color: d.color, note: d.note, columns });
+      moveTableKey(oldKey, key);
+    } else {
+      state.tables.push({ id: nextId('T', state.tables), schema: d.schema, name: d.name, alias: '', color: d.color, note: d.note, columns, indexes: '' });
+    }
+    if (groupName(key) !== d.group) {
+      for (const g of state.groups) g.tables = g.tables.filter(k => k !== key);
+      if (d.group) groupByName(d.group).tables.push(key);
+    }
+    if (!t) onCreate?.(key);
+    commit();
+  });
+  form.querySelector('input')?.focus();
+}
+
+function openRefEditor(r, preset = {}) {
+  if (!ui.edit || !state.tables.length) return;
+  const first = tableKey(state.tables[0]);
+  const d = r
+    ? { name: r.name, rel: r.rel, onDelete: r.onDelete, onUpdate: r.onUpdate, from: { ...r.from, columns: [...r.from.columns] }, to: { ...r.to, columns: [...r.to.columns] } }
+    : { name: '', rel: '>', onDelete: '', onUpdate: '', from: preset.from || { table: first, columns: [] }, to: preset.to || { table: first, columns: [] } };
+  const body = h('div', { style: 'display:grid; gap:12px' });
+  const preview = h('pre', { class: 'preview' });
+  const cols = list => list.split(',').map(x => x.trim()).filter(Boolean);
+  const showPreview = () => {
+    const end = e => ({ table: e.table, columns: e.columns.length ? e.columns : ['?'] });
+    const opts = [d.onDelete && `delete: ${d.onDelete}`, d.onUpdate && `update: ${d.onUpdate}`].filter(Boolean);
+    preview.textContent = `Ref${d.name ? ' ' + qid(d.name) : ''}: ${qend(end(d.from))} ${d.rel} ${qend(end(d.to))}${opts.length ? ` [${opts.join(', ')}]` : ''}`;
+  };
+  const side = (label, end, listId) => {
+    const t = tableByKey(end.table);
+    return h('div', { class: 'fields' },
+      field(label, h('select', { class: 'mono', onchange: e => {
+        end.table = e.target.value;
+        if (end === d.to) Object.assign(d.to, refPreset(d.from.table, d.to.table).to);
+        Object.assign(d.from, { columns: refPreset(d.from.table, d.to.table).from.columns });
+        draw();
+      } }, state.tables.map(x => h('option', { value: tableKey(x), selected: tableKey(x) === end.table }, tableKey(x))))),
+      field('Colonnes (séparées par des virgules)', h('input', { class: 'mono', list: listId, value: end.columns.join(', '), oninput: e => { end.columns = cols(e.target.value); showPreview(); } })),
+      h('datalist', { id: listId }, (t?.columns || []).map(c => h('option', { value: c.name }))));
+  };
+  const actionSelect = (label, key) => field(label, h('select', { class: 'mono', onchange: e => { d[key] = e.target.value; showPreview(); } },
+    ACTIONS.map(a => h('option', { value: a, selected: a === d[key] }, a || '— par défaut —'))));
+  function draw() {
+    fill(body,
+      side('Table source (porte la clé étrangère)', d.from, 'dbviz-from-cols'),
+      h('div', { class: 'fields' },
+        field('Cardinalité', h('select', { onchange: e => { d.rel = e.target.value; showPreview(); } },
+          Object.entries(RELS).map(([k, v]) => h('option', { value: k, selected: k === d.rel }, `${k}  ${v.label} · ${v.name}`)))),
+        field('Nom (facultatif)', h('input', { class: 'mono', value: d.name, oninput: e => { d.name = e.target.value.trim(); showPreview(); } }))),
+      side('Table référencée', d.to, 'dbviz-to-cols'),
+      h('div', { class: 'fields' }, actionSelect('ON DELETE', 'onDelete'), actionSelect('ON UPDATE', 'onUpdate')),
+      preview);
+    showPreview();
+  }
+  draw();
+  openDialog(r ? 'Modifier la référence' : 'Nouvelle référence', body, () => {
+    for (const [label, end] of [['source', d.from], ['référencée', d.to]]) {
+      const t = tableByKey(end.table);
+      if (!t) return `Table ${label} inconnue.`;
+      if (!end.columns.length) return `Indiquez les colonnes de la table ${label}.`;
+      const missing = end.columns.filter(c => !t.columns.some(x => x.name === c));
+      if (missing.length) return `Colonne inconnue dans ${end.table} : ${missing.join(', ')}.`;
+    }
+    if (d.from.columns.length !== d.to.columns.length) return 'Les deux côtés doivent avoir le même nombre de colonnes.';
+    if (d.name && !IDENT_RE.test(d.name)) return 'Nom de référence invalide.';
+    if (r) Object.assign(r, d);
+    else {
+      const created = { id: nextId('R', state.refs), ...d, line: 0 };
+      state.refs.push(created);
+      ui.selected = { type: 'ref', id: created.id };
+    }
+    commit();
+  }, true);
+}
+
+function openGroupEditor(g) {
+  if (!ui.edit) return;
+  const d = g ? { name: g.name, color: g.color, note: g.note } : { name: '', color: '', note: '' };
+  const form = openDialog(g ? `Modifier le groupe ${g.name}` : 'Nouveau groupe', [
+    h('div', { class: 'fields' },
+      field('Nom', h('input', { class: 'mono', value: d.name, oninput: e => { d.name = e.target.value.trim(); } })),
+      field('Couleur', h('input', { class: 'mono', value: d.color, placeholder: GROUP_PALETTE[state.groups.length % GROUP_PALETTE.length], oninput: e => { d.color = e.target.value.trim(); } }))),
+    field('Note', h('textarea', { oninput: e => { d.note = e.target.value; } }, d.note)),
+  ], () => {
+    if (!d.name || !IDENT_RE.test(d.name)) return 'Nom de groupe invalide.';
+    if (d.name !== g?.name && groupByName(d.name)) return `Le groupe ${d.name} existe déjà.`;
+    if (d.color && !/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(d.color)) return 'Couleur attendue au format #rgb ou #rrggbb.';
+    if (g) {
+      const old = g.name;
+      Object.assign(g, d);
+      if (ui.group === old) ui.group = d.name;
+      if (ui.hideGroups.delete(old)) ui.hideGroups.add(d.name);
+      if (ui.selected?.type === 'group' && ui.selected.id === old) ui.selected.id = d.name;
+    } else {
+      state.groups.push({ ...d, tables: [] });
+      ui.selected = { type: 'group', id: d.name };
+    }
+    commit();
+  }, true);
+  form.querySelector('input')?.focus();
+}
 
 /* ---------- Import / export ---------- */
 
@@ -603,9 +1856,9 @@ $('file').addEventListener('change', async () => {
   if (!f || !ui.edit) return;
   if (f.size > MAX_IMPORT) { toast('Fichier trop volumineux (5 Mo au plus)', true); return; }
   try {
-    state = normalize(parseDbml(await f.text()));
-    commit();
-    toast(`${f.name} importé : ${state.tables.length} tables, ${state.refs.length} références`);
+    replaceState(normalize(parseDbml(await f.text())));
+    ui.srcDraft = null;
+    toast(`${f.name} importé : ${plural(state.tables.length, 'table')}, ${plural(state.refs.length, 'référence')}`);
   } catch (err) {
     toast(err instanceof DbmlError ? 'Import impossible. ' + err.message : 'Import impossible : fichier illisible', true);
   }
@@ -613,8 +1866,8 @@ $('file').addEventListener('change', async () => {
 
 function loadSample() {
   if (!ui.edit || !SAMPLE) return;
-  state = normalize(parseDbml(SAMPLE));
-  commit();
+  ui.srcDraft = null;
+  replaceState(normalize(parseDbml(SAMPLE)));
 }
 
 function download(name, text, type) {
@@ -624,8 +1877,37 @@ function download(name, text, type) {
   setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
 function exportDbml() {
-  const base = (state.project && state.project.name) || 'modele';
+  const base = state.project?.name || 'modele';
   download(base.replace(/[^\p{L}\p{N}_-]+/gu, '_') + '.dbml', toDbml(state), 'text/plain;charset=utf-8');
+}
+
+// Applique le texte de l'onglet DBML au modèle (édition seulement).
+function applySource() {
+  if (!ui.edit || ui.srcDraft == null) return;
+  try {
+    const m = normalize(parseDbml(ui.srcDraft));
+    ui.srcDraft = null;
+    ui.srcError = '';
+    replaceState(m);
+    renderSource(true);
+    toast('DBML appliqué');
+  } catch (err) {
+    ui.srcError = err instanceof DbmlError ? err.message : 'DBML illisible';
+    renderSource(true);
+    const ta = $('source').querySelector('textarea');
+    if (err.line && ta) {
+      const lines = ta.value.split('\n');
+      const start = lines.slice(0, err.line - 1).reduce((t, l) => t + l.length + 1, 0);
+      ta.focus();
+      ta.setSelectionRange(start, start + (lines[err.line - 1] || '').length);
+    }
+  }
+}
+function copySource() {
+  const ta = $('source').querySelector('textarea');
+  const done = () => toast('DBML copié dans le presse-papiers');
+  if (navigator.clipboard?.writeText) navigator.clipboard.writeText(ta.value).then(done, () => { ta.select(); document.execCommand('copy'); done(); });
+  else { ta.select(); document.execCommand('copy'); done(); }
 }
 
 /* ---------- Rendu ---------- */
@@ -638,54 +1920,279 @@ function renderHeader() {
   fill(lock, lockIcon(ui.edit), ui.edit ? 'Édition' : 'Lecture seule');
   const name = $('docname');
   name.disabled = !ui.edit;
-  if (document.activeElement !== name) name.value = (state.project && state.project.name) || '';
-  name.placeholder = 'Modèle sans nom';
+  if (document.activeElement !== name) name.value = state.project?.name || '';
+  name.placeholder = 'modèle sans nom';
   fill($('actions'),
-    editBtn('Importer', importDbml, false, 'Remplacer le modèle par un fichier .dbml'),
-    editBtn('Exemple', loadSample, false, "Recharger l'exemple de la boutique"),
-    h('button', { class: 'btn primary', type: 'button', onclick: exportDbml, title: 'Télécharger le modèle au format DBML' }, 'Exporter'));
+    ui.edit ? h('button', { class: 'btn', type: 'button', onclick: undo, disabled: !undoStack.length, title: 'Annuler la dernière modification (Ctrl+Z)' }, '↶') : null,
+    editBtn('Importer', importDbml, '', 'Remplacer le modèle par un fichier .dbml'),
+    editBtn('Exemple', loadSample, '', 'Recharger l’exemple de la boutique'),
+    h('button', { class: 'btn primary', type: 'button', onclick: exportDbml, title: 'Télécharger le modèle au format DBML' }, 'Exporter .dbml'));
+  for (const b of $('actions').querySelectorAll('.btn.small')) b.classList.remove('small');
 }
 
 $('docname').addEventListener('change', e => {
   if (!ui.edit) return;
-  const v = e.target.value.trim();
   if (!state.project) state.project = { name: '', settings: [], note: '' };
-  state.project.name = v;
+  state.project.name = e.target.value.trim();
   commit();
 });
 
-function renderToolbar() {
-  fill($('toolbar'),
-    h('span', { class: 'label' }, 'Plan d\'ensemble'),
+const SCENE_KIND = { plan: 'Plan d’ensemble', table: 'Table', group: 'Groupe', schema: 'Schéma' };
+
+function renderContextBar() {
+  const mode = scene?.mode || 'plan';
+  const name = mode === 'table' ? ui.focus : mode === 'group' ? ui.group : mode === 'schema' ? ui.schema : '';
+  const shown = scene ? scene.refs.length : 0;
+  const search = h('input', { class: 'sm search', type: 'search', id: 'search', list: 'dbviz-tables', placeholder: 'Aller à une table…  /', 'aria-label': 'Aller à une table' });
+  search.addEventListener('change', () => { const v = search.value.trim(); if (tableByKey(v)) { search.value = ''; focusTable(v); } });
+  search.addEventListener('keydown', e => {
+    if (e.key !== 'Enter') return;
+    const v = search.value.trim().toLowerCase();
+    const hit = state.tables.map(tableKey).find(k => k.toLowerCase() === v) || state.tables.map(tableKey).find(k => k.toLowerCase().includes(v));
+    if (hit) { search.value = ''; focusTable(hit); }
+  });
+  fill($('ctxbar'),
+    mode !== 'plan' ? h('button', { class: 'btn small', type: 'button', onclick: backToPlan, title: 'Revenir au plan d’ensemble (Échap)' }, '◂ Plan d’ensemble') : null,
+    h('span', { class: 'crumb' }, h('span', { class: 'kind' }, SCENE_KIND[mode]), name || null),
+    h('span', { class: 'count' }, `${shown}/${state.refs.length} réf.`),
     h('span', { class: 'grow' }),
-    ui.edit
-      ? h('span', { class: 'hint' }, 'Double-clic sur le fond : nouvelle table · glisser d\'une table à une autre : nouvelle référence · Maj + glisser : déplacer')
-      : h('span', { class: 'hint' }, 'Déverrouillez le cadenas pour ajouter ou modifier des tables et des références.'));
+    h('select', { class: 'sm', 'aria-label': 'Groupe', onchange: e => showGroup(e.target.value) },
+      h('option', { value: '' }, 'Tous les groupes'), state.groups.map(g => h('option', { value: g.name, selected: g.name === ui.group }, g.name))),
+    schemas().length > 1 ? h('select', { class: 'sm', 'aria-label': 'Schéma', onchange: e => { ui.schema = e.target.value; ui.focus = null; renderAll(); } },
+      h('option', { value: '' }, 'Tous les schémas'), schemas().map(x => h('option', { value: x, selected: x === ui.schema }, x))) : null,
+    search,
+    h('datalist', { id: 'dbviz-tables' }, state.tables.map(t => h('option', { value: tableKey(t) }))));
 }
 
-function renderGraph() {
-  // À implémenter selon le skill graphe-reseau (scènes, mise en page, transitions, gestes d'édition).
-  $('placeholder').hidden = false;
+const seg = (options, value, onpick) => h('span', { class: 'seg', role: 'group' },
+  options.map(([v, label, title]) => h('button', { type: 'button', class: v === value ? 'on' : null, title, 'aria-pressed': String(v === value), onclick: () => onpick(v) }, label)));
+
+function legendSwatch(rel, dashed) {
+  return s('svg', { width: 34, height: 10, 'aria-hidden': 'true', class: `edge rel-${RELS[rel].cls}${dashed ? ' nullable' : ''}` },
+    s('path', { class: 'line', d: 'M2,5 H27', 'marker-end': `url(#arrow-${RELS[rel].cls})`, 'marker-start': rel !== '>' ? `url(#arrow-${RELS[rel].cls})` : null }));
+}
+
+function renderToolbar() {
+  const groups = [...state.groups.map(g => g.name), ...(state.tables.some(t => !groupOf(tableKey(t))) ? [''] : [])];
+  fill($('toolbar'),
+    h('span', { class: 'tool-label' }, 'Cartes'),
+    seg([['keys', 'Clés', 'Clés primaires et étrangères'], ['all', 'Toutes', 'Toutes les colonnes'], ['none', 'Titre', 'Nom de la table seulement']], ui.cards,
+      v => { ui.cards = v; sceneIdentity = null; renderAll(); }),
+    h('span', { class: 'tool-label' }, 'Étiquettes'),
+    seg([['cols', 'Colonnes', 'Colonnes reliées à chaque bout'], ['names', 'Noms', 'Nom de la référence ou cardinalité'], ['none', 'Aucune']], ui.labels,
+      v => { ui.labels = v; renderAll(); }),
+    h('details', { class: 'pop' },
+      h('summary', { class: 'btn small' }, 'Filtres' + (ui.hideRel.size + ui.hideGroups.size ? ` · ${ui.hideRel.size + ui.hideGroups.size}` : '')),
+      h('div', { class: 'pop-panel' },
+        h('span', { class: 'label' }, 'Cardinalités'),
+        Object.entries(RELS).map(([k, v]) => h('label', {},
+          h('input', { type: 'checkbox', checked: !ui.hideRel.has(k), onchange: e => { e.target.checked ? ui.hideRel.delete(k) : ui.hideRel.add(k); renderAll(); reopen('Filtres'); } }),
+          h('span', { class: 'rel ' + v.badge }, v.label), v.name)),
+        groups.length ? h('span', { class: 'label' }, 'Groupes') : null,
+        groups.map(name => h('label', {},
+          h('input', { type: 'checkbox', checked: !ui.hideGroups.has(name), onchange: e => { e.target.checked ? ui.hideGroups.delete(name) : ui.hideGroups.add(name); cleanUi(); renderAll(); reopen('Filtres'); } }),
+          h('span', { class: 'swatch', style: `background:${groupColor(groupByName(name))}` }), h('span', { class: 'mono' }, name || 'sans groupe'))))),
+    h('details', { class: 'pop' },
+      h('summary', { class: 'btn small' }, 'Légende'),
+      h('div', { class: 'pop-panel' },
+        Object.entries(RELS).map(([k, v]) => h('div', { class: 'legend-row' }, legendSwatch(k), h('span', {}, h('b', { class: 'mono' }, v.label), ' ', v.name))),
+        h('div', { class: 'legend-row' }, legendSwatch('>', true), 'Clé étrangère facultative (nullable)'),
+        h('div', { class: 'legend-row' }, h('b', { class: 'tag pk' }, 'PK'), ' clé primaire  ', h('b', { class: 'tag' }, 'FK'), ' clé étrangère'),
+        h('span', { class: 'hint' }, 'La flèche va de la table qui porte la clé étrangère vers la table référencée.'))),
+    h('button', { class: 'btn small', type: 'button', onclick: recenter, title: 'Recadrer la scène' }, 'Recentrer'),
+    h('span', { class: 'grow' }),
+    ui.edit
+      ? h('span', { class: 'hint' }, h('b', {}, 'Double-clic'), ' fond : table · ', h('b', {}, 'Glisser'), ' table → table : référence · ', h('b', {}, 'Maj + glisser'), ' : déplacer')
+      : h('span', { class: 'hint' }, 'Déverrouillez le cadenas pour ajouter ou modifier.'));
+}
+// Garde ouvert le panneau d'outils dans lequel on vient de cocher une case.
+function reopen(label) {
+  for (const d of $('toolbar').querySelectorAll('details')) if (d.querySelector('summary').textContent.startsWith(label)) d.open = true;
+}
+
+const relBadge = r => h('span', { class: 'rel ' + relOf(r).badge, title: relOf(r).name }, relOf(r).label);
+const tableLink = key => h('span', { class: 'mono' }, key);
+
+function refRow(r, viewFrom) {
+  const other = viewFrom === r.from.table ? r.to : r.from;
+  const mine = viewFrom === r.from.table ? r.from : r.to;
+  return h('div', { class: 'row', onclick: () => select({ type: 'ref', id: r.id }), title: refText(r) },
+    relBadge(r),
+    h('span', { class: 'mono grow' }, `${mine.columns.join(', ')} → ${other.table}.${other.columns.join(', ')}`),
+    iconBtn('✎', 'Modifier la référence', () => openRefEditor(r)),
+    iconBtn('✕', 'Supprimer la référence', () => removeRef(r.id), true));
 }
 
 function renderDetail() {
+  const pane = $('detail');
+  const sel = ui.selected;
+  if (sel?.type === 'table' && tableByKey(sel.id)) {
+    const key = sel.id, t = tableByKey(key), g = groupOf(key), fks = fkColumns(key);
+    const outgoing = state.refs.filter(r => r.from.table === key);
+    const incoming = state.refs.filter(r => r.to.table === key && r.from.table !== key);
+    fill(pane,
+      h('div', { class: 'dhead' }, h('span', { class: 'swatch', style: `background:${tableColor(t)}` }), h('h2', { class: 'grow' }, key),
+        ui.focus !== key ? h('button', { class: 'btn small', type: 'button', onclick: () => focusTable(key) }, 'Centrer') : null),
+      h('div', { class: 'keys' },
+        h('span', {}, 'Groupe'),
+        g ? h('span', {}, h('button', { class: 'btn small', type: 'button', onclick: () => showGroup(g.name), title: 'Voir le groupe' }, h('span', { class: 'swatch', style: `background:${groupColor(g)}` }), g.name)) : h('span', { class: 'mono' }, '—'),
+        h('span', {}, 'Colonnes'), h('span', { class: 'mono' }, t.columns.length)),
+      ui.edit ? h('div', { class: 'dactions' },
+        editBtn('Modifier', () => openTableEditor(t)),
+        editBtn('+ Référence', () => openRefEditor(null, refPreset(key, outgoing[0]?.to.table || key))),
+        editBtn('Supprimer', () => removeTable(key), 'danger')) : null,
+      t.note ? h('p', { class: 'note' }, t.note) : null,
+      h('table', { class: 'grid' },
+        h('thead', {}, h('tr', {}, h('th', {}, ''), h('th', {}, 'Colonne'), h('th', {}, 'Type'))),
+        h('tbody', {}, t.columns.map(c => {
+          const flags = [c.notNull && 'not null', c.unique && 'unique', c.increment && 'increment', c.default && 'default ' + defaultText(c.default)].filter(Boolean);
+          return h('tr', { title: c.note || null },
+            h('td', {}, c.pk ? h('span', { class: 'tag pk' }, 'PK') : fks.has(c.name) ? h('span', { class: 'tag' }, 'FK') : null),
+            h('td', { class: 'mono' }, c.name),
+            h('td', { class: 'mono muted' }, c.type, flags.length ? h('div', { class: 'flags' }, flags.join(' · ')) : null));
+        }))),
+      h('span', { class: 'label' }, `Clés étrangères · ${outgoing.length}`),
+      outgoing.length ? h('div', { class: 'list' }, outgoing.map(r => refRow(r, key))) : h('span', { class: 'muted' }, 'Aucune.'),
+      h('span', { class: 'label' }, `Référencée par · ${incoming.length}`),
+      incoming.length ? h('div', { class: 'list' }, incoming.map(r => refRow(r, key))) : h('span', { class: 'muted' }, 'Aucune table.'),
+      t.indexes ? [h('span', { class: 'label' }, 'Index'), h('pre', { class: 'snippet' }, t.indexes)] : null);
+    return;
+  }
+  if (sel?.type === 'ref' && refById(sel.id)) {
+    const r = refById(sel.id);
+    const rel = relOf(r);
+    const end = e => h('div', { class: 'row', onclick: () => focusTable(e.table) }, h('span', { class: 'mono grow' }, `${e.table}.${e.columns.length > 1 ? '(' + e.columns.join(', ') + ')' : e.columns[0]}`), h('span', { class: 'muted' }, '↗'));
+    fill(pane,
+      h('div', { class: 'dhead' }, relBadge(r), h('h2', { class: 'grow' }, r.name || 'Référence')),
+      h('div', { class: 'dactions' }, editBtn('Modifier', () => openRefEditor(r)), editBtn('Supprimer', () => removeRef(r.id), 'danger')),
+      h('span', { class: 'label' }, 'Source (clé étrangère)'), end(r.from),
+      h('span', { class: 'label' }, 'Référencée'), end(r.to),
+      h('div', { class: 'keys' },
+        h('span', {}, 'Cardinalité'), h('span', { class: 'mono' }, `${rel.label} · ${rel.name}`),
+        h('span', {}, 'Nullable'), h('span', { class: 'mono' }, refNullable(r) ? 'oui' : 'non'),
+        h('span', {}, 'ON DELETE'), h('span', { class: 'mono' }, r.onDelete || '—'),
+        h('span', {}, 'ON UPDATE'), h('span', { class: 'mono' }, r.onUpdate || '—')),
+      h('pre', { class: 'snippet' }, toDbml({ ...emptyModel(), refs: [r] }).trim()));
+    return;
+  }
+  if (sel?.type === 'group' && groupByName(sel.id)) {
+    const g = groupByName(sel.id);
+    const keys = new Set(g.tables);
+    const inner = state.refs.filter(r => keys.has(r.from.table) && keys.has(r.to.table)).length;
+    const outer = state.refs.filter(r => keys.has(r.from.table) !== keys.has(r.to.table)).length;
+    fill(pane,
+      h('div', { class: 'dhead' }, h('span', { class: 'swatch', style: `background:${groupColor(g)}` }), h('h2', { class: 'grow' }, g.name),
+        ui.group !== g.name ? h('button', { class: 'btn small', type: 'button', onclick: () => showGroup(g.name) }, 'Voir le groupe') : null),
+      h('div', { class: 'dactions' }, editBtn('Modifier', () => openGroupEditor(g)), editBtn('+ Table', () => openTableEditor(null, { group: g.name }, k => { ui.selected = { type: 'table', id: k }; })), editBtn('Supprimer', () => removeGroup(g.name), 'danger')),
+      g.note ? h('p', { class: 'note' }, g.note) : null,
+      h('div', { class: 'keys' }, h('span', {}, 'Références internes'), h('span', { class: 'mono' }, inner), h('span', {}, 'Vers d’autres groupes'), h('span', { class: 'mono' }, outer)),
+      h('span', { class: 'label' }, `Tables · ${g.tables.length}`),
+      h('div', { class: 'list' }, g.tables.map(k => h('div', { class: 'row', onclick: () => focusTable(k) },
+        h('span', { class: 'mono grow' }, k), h('span', { class: 'muted' }, plural(tableByKey(k).columns.length, 'col.', 'col.'))))));
+    return;
+  }
+  // Synthèse, sans sélection.
   const nCols = state.tables.reduce((n, t) => n + t.columns.length, 0);
-  const stat = (n, label) => h('div', { class: 'stat' }, h('b', null, n), h('span', { class: 'muted' }, label));
-  fill($('detail'),
-    h('h2', null, 'Synthèse'),
-    state.project && state.project.note ? h('p', { class: 'muted', style: 'margin:0' }, state.project.note) : null,
-    h('div', { class: 'stats' },
-      stat(state.tables.length, 'tables'), stat(nCols, 'colonnes'),
-      stat(state.refs.length, 'références'), stat(state.groups.length, 'groupes')),
-    issues.length ? [h('span', { class: 'label' }, 'Avertissements'), h('ul', { class: 'issues' }, issues.map(i => h('li', null, i)))] : null);
+  const stat = (n, label) => h('div', { class: 'stat' }, h('b', {}, n), h('span', {}, label));
+  const ungrouped = state.tables.filter(t => !groupOf(tableKey(t))).length;
+  fill(pane,
+    h('div', { class: 'dhead' }, h('h2', { class: 'grow' }, state.project?.name || 'Modèle'), state.project?.settings.find(x => x.key === 'database_type') ? h('span', { class: 'rel n1' }, state.project.settings.find(x => x.key === 'database_type').value) : null),
+    state.project?.note ? h('p', { class: 'note' }, state.project.note) : null,
+    h('div', { class: 'stats' }, stat(state.tables.length, 'tables'), stat(nCols, 'colonnes'), stat(state.refs.length, 'réf.'), stat(state.groups.length, 'groupes')),
+    ui.edit ? h('div', { class: 'dactions' },
+      editBtn('+ Table', () => openTableEditor(null, {}, k => { ui.selected = { type: 'table', id: k }; })),
+      editBtn('+ Référence', () => openRefEditor(null)),
+      editBtn('+ Groupe', () => openGroupEditor(null))) : null,
+    issues.length ? [h('span', { class: 'label' }, `Avertissements d’import · ${issues.length}`), h('ul', { class: 'issues' }, issues.map(i => h('li', {}, i)))] : null,
+    state.groups.length ? [h('span', { class: 'label' }, 'Groupes'), h('div', { class: 'list' },
+      state.groups.map(g => h('div', { class: 'row', onclick: () => select({ type: 'group', id: g.name }) },
+        h('span', { class: 'swatch', style: `background:${groupColor(g)}` }), h('span', { class: 'mono grow' }, g.name), h('span', { class: 'muted' }, plural(g.tables.length, 'table')))),
+      ungrouped ? h('div', { class: 'row', style: 'cursor:default' }, h('span', { class: 'swatch', style: `background:${NEUTRAL}` }), h('span', { class: 'mono grow muted' }, 'sans groupe'), h('span', { class: 'muted' }, plural(ungrouped, 'table'))) : null)] : null,
+    state.enums.length ? [h('span', { class: 'label' }, 'Énumérations'), h('div', { class: 'list' },
+      state.enums.map(e => h('div', { class: 'row', style: 'cursor:default', title: e.values.map(v => v.name).join(', ') }, h('span', { class: 'mono grow' }, (e.schema ? e.schema + '.' : '') + e.name), h('span', { class: 'muted' }, plural(e.values.length, 'valeur')))))] : null,
+    h('span', { class: 'label' }, 'Raccourcis'),
+    h('div', { class: 'keys' },
+      h('kbd', {}, 'E'), h('span', {}, 'lecture seule / édition'),
+      h('kbd', {}, '/'), h('span', {}, 'aller à une table'),
+      h('kbd', {}, 'Échap'), h('span', {}, 'désélectionner, puis plan d’ensemble'),
+      h('kbd', {}, 'Ctrl+Z'), h('span', {}, 'annuler (édition)'),
+      h('kbd', {}, 'Molette'), h('span', {}, 'zoom')));
+}
+
+function renderTabs() {
+  fill($('tabs'), [['detail', 'Détail'], ['source', 'DBML']].map(([k, label]) =>
+    h('button', { type: 'button', role: 'tab', class: ui.tab === k ? 'on' : null, 'aria-selected': String(ui.tab === k), onclick: () => { ui.tab = k; renderTabs(); renderSource(); } }, label)));
+  $('detail').hidden = ui.tab !== 'detail';
+  $('source').hidden = ui.tab !== 'source';
+}
+
+function renderSource(force) {
+  const pane = $('source');
+  if (ui.tab !== 'source') return;
+  // Ne pas écraser une saisie en cours.
+  if (!force && pane.contains(document.activeElement) && document.activeElement.tagName === 'TEXTAREA') return;
+  const ta = h('textarea', { class: 'code', spellcheck: 'false', readonly: !ui.edit, 'aria-label': 'Source DBML' });
+  ta.value = ui.srcDraft ?? toDbml(state);
+  ta.addEventListener('input', () => { ui.srcDraft = ta.value; ui.srcError = ''; });
+  ta.addEventListener('keydown', e => {
+    if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) { e.preventDefault(); applySource(); }
+    if (e.key === 'Tab' && !e.shiftKey && ui.edit) { e.preventDefault(); ta.setRangeText('  ', ta.selectionStart, ta.selectionEnd, 'end'); ui.srcDraft = ta.value; }
+  });
+  fill(pane,
+    h('div', { class: 'srcbar' },
+      h('span', { class: 'label' }, ui.srcDraft != null ? 'DBML · modifié' : 'DBML'),
+      h('span', { class: 'grow' }),
+      ui.edit && ui.srcDraft != null ? h('button', { class: 'btn small', type: 'button', onclick: () => { ui.srcDraft = null; ui.srcError = ''; renderSource(true); } }, 'Rétablir') : null,
+      editBtn('Appliquer', applySource, 'primary', 'Remplacer le modèle par ce texte (Ctrl+Entrée)'),
+      h('button', { class: 'btn small', type: 'button', onclick: copySource }, 'Copier')),
+    ta,
+    ui.srcError ? h('div', { class: 'src-error', role: 'alert' }, ui.srcError) : null);
+}
+
+function renderStatus() {
+  const nCols = state.tables.reduce((n, t) => n + t.columns.length, 0);
+  fill($('status'),
+    h('span', {}, `${plural(state.tables.length, 'table')} · ${plural(nCols, 'colonne')} · ${plural(state.refs.length, 'référence')} · ${plural(state.groups.length, 'groupe')}`),
+    issues.length ? h('span', { class: 'warn' }, `⚠ ${plural(issues.length, 'avertissement')}`) : null,
+    h('span', { class: 'grow' }),
+    h('span', {}, 'zoom ', h('span', { id: 'zoom' }, Math.round(view.k * 100) + ' %')),
+    h('span', { class: 'mode' + (ui.edit ? ' on' : '') }, ui.edit ? 'ÉDITION' : 'LECTURE SEULE'));
 }
 
 function renderAll() {
   renderHeader();
-  renderToolbar();
   renderGraph();
+  renderContextBar();
+  renderToolbar();
+  renderTabs();
   renderDetail();
+  renderSource();
+  renderStatus();
 }
+
+/* ---------- Clavier ---------- */
+
+document.addEventListener('keydown', e => {
+  if (editorIsOpen()) return;
+  if (e.key.toLowerCase() === 'e' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && !typing(e)) {
+    e.preventDefault();
+    setEditMode(!ui.edit);
+    return;
+  }
+  if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey && ui.edit && !typing(e)) { e.preventDefault(); undo(); return; }
+  if (e.key === '/' && !typing(e)) { e.preventDefault(); $('search')?.focus(); return; }
+  if (e.key !== 'Escape') return;
+  const open = $('toolbar').querySelector('details[open]');
+  if (open) { open.open = false; return; }
+  if (typing(e)) { e.target.blur(); return; }
+  if (ui.selected) select(null);
+  else if (ui.focus || ui.group || ui.schema) backToPlan();
+});
+// Un clic hors d'un panneau d'outils le referme.
+document.addEventListener('pointerdown', e => {
+  for (const d of document.querySelectorAll('details.pop[open]')) if (!d.contains(e.target)) d.open = false;
+});
+window.addEventListener('resize', applyView);
 
 load();
 renderAll();

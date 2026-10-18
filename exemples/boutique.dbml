@@ -14,7 +14,7 @@ Enum statut_commande {
   annulee
 }
 
-Table clients [headercolor: #0f6c7a] {
+Table clients [headercolor: #1f8a9e] {
   id integer [pk, increment]
   email varchar(255) [unique, not null]
   nom varchar(120) [not null]
@@ -83,19 +83,19 @@ Table paiements {
   moyen varchar(20) [note: 'carte, virement, avoir…']
 }
 
-TableGroup clientele [color: #0f6c7a] {
+TableGroup clientele [color: #1f8a9e] {
   clients
   adresses
   profils
 }
 
-TableGroup catalogue [color: #7a4f0f] {
+TableGroup catalogue [color: #b7791f] {
   categories
   produits
   fournisseurs
 }
 
-TableGroup ventes [color: #6b2f7a] {
+TableGroup ventes [color: #8e4bb0] {
   commandes
   lignes_commande
   paiements
