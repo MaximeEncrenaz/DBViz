@@ -2,11 +2,11 @@
 
 Visualisation d'un **modèle de base de données relationnelle** décrit en [DBML](https://dbml.dbdiagram.io/docs/) : tables, colonnes, références (clés étrangères) et groupes de tables. On importe un fichier `.dbml`, on parcourt le modèle sous forme de graphe, on le modifie et on l'exporte de nouveau en DBML.
 
-L'application tient dans un seul fichier, `src/index.html`, qui fonctionne **hors ligne** : aucune installation, aucun serveur, aucune ressource externe.
+L'application tient dans un seul fichier, `index.html`, qui fonctionne **hors ligne** : aucune installation, aucun serveur, aucune ressource externe.
 
 ## Utilisation
 
-1. Ouvrir `src/index.html` dans un navigateur récent (Edge, Chrome, Firefox).
+1. Ouvrir `index.html` dans un navigateur récent (Edge, Chrome, Firefox).
 2. L'application démarre avec un exemple (boutique en ligne, [exemples/boutique.dbml](exemples/boutique.dbml)).
 3. Le modèle est enregistré automatiquement dans le navigateur. Il n'est visible que sur ce poste et ce navigateur : **Exporter .dbml** le télécharge, **Importer** (en mode édition) en recharge un.
 
@@ -44,17 +44,17 @@ L'application tient dans un seul fichier, `src/index.html`, qui fonctionne **hor
 
 | Chemin | Rôle |
 | --- | --- |
-| `src/index.html` | L'application complète (HTML, CSS et JavaScript intégrés) |
+| `index.html` | L'application complète (HTML, CSS et JavaScript intégrés) |
 | `exemples/` | Fichiers DBML importables |
 | `docs/` | Documentation, dont le sous-ensemble DBML pris en charge |
 | `scripts/` | Outils de maintenance (Node.js), sans effet sur l'application |
-| `.claude/skills/` | Conventions communes à mes projets (graphe, mode édition), copiées de `../skills/` |
+| `.claude/skills/` | Conventions communes à mes projets (graphe, mode édition), copiées de `../skills/` (non versionnées) |
 | `CHANGELOG.md` | Historique des évolutions |
 | `CLAUDE.md` | Consignes pour Claude Code (architecture, vérifications) |
 
 ## Développement
 
-Pas de compilation, pas de dépendance : on modifie `src/index.html` puis on recharge la page. Le fichier doit rester autonome (pas de CDN, pas de police web).
+Pas de compilation, pas de dépendance : on modifie `index.html` puis on recharge la page. Le fichier doit rester autonome (pas de CDN, pas de police web).
 
 Après modification de `exemples/boutique.dbml`, recopier l'exemple dans l'application :
 
@@ -65,7 +65,7 @@ node scripts/sync-exemple.js
 Vérification de la syntaxe du script intégré (Git Bash, Node.js installé) :
 
 ```sh
-sed -n '/<script>/,/<\/script>/p' src/index.html | sed '1d;$d' > /tmp/app.js && node --check /tmp/app.js
+sed -n '/<script>/,/<\/script>/p' index.html | sed '1d;$d' > /tmp/app.js && node --check /tmp/app.js
 ```
 
 ## Licence

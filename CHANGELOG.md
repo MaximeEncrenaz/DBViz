@@ -16,4 +16,5 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 - Exemple « boutique » (`exemples/boutique.dbml`), chargé au premier lancement.
 
 ### Modifié
+- `index.html` déplacé à la racine du dépôt (auparavant `src/index.html`).
 - Couleurs des groupes de l'exemple éclaircies pour rester lisibles en thème sombre.
