@@ -17,7 +17,7 @@ L'application tient dans un seul fichier, `index.html`, qui fonctionne **hors li
   - clic sur une table : lecture de gauche à droite, avec la table au centre, les tables qui portent une clé étrangère vers elle à gauche et les tables qu'elle référence à droite ;
   - choix d'un groupe : ses références, avec la table la plus reliée au centre ;
   - choix d'un schéma (si le modèle en compte plusieurs) : une constellation par groupe ;
-  - cartes en trois niveaux de détail (**Clés** : clés primaires et étrangères, **Toutes** les colonnes, **Titre** seul) ;
+  - cartes en trois niveaux de détail (**Toutes** les colonnes, par défaut, **Clés** : clés primaires et étrangères, **Titre** seul) ;
   - traits colorés selon la cardinalité (N:1, 1:1, N:N), en tirets pour une clé étrangère facultative ; étiquettes au choix : colonnes reliées, noms des références, aucune ;
   - filtres par cardinalité et par groupe, légende, recherche d'une table (touche **/**), zoom à la molette, transitions animées entre les vues.
 - **Panneau de détail** : colonnes d'une table avec leurs propriétés, clés étrangères et tables qui la référencent, détail d'une référence ou d'un groupe ; synthèse du modèle sans sélection.

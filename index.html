@@ -291,7 +291,7 @@ const ui = {
   group: '',            // groupe choisi (scène « focus groupe »)
   schema: '',           // schéma choisi (constellations par groupe)
   labels: 'cols',       // étiquettes des traits : cols | names | none
-  cards: 'keys',        // contenu des cartes : keys | all | none
+  cards: 'all',         // contenu des cartes : all | keys | none
   spread: true,         // graphe éclaté (par défaut) : cartes espacées, croisements réduits, traits qui contournent les cartes
   hideRel: new Set(),   // cardinalités masquées
   hideGroups: new Set(),// groupes masqués ('' = tables sans groupe)
@@ -2112,7 +2112,7 @@ function renderToolbar() {
   const groups = [...state.groups.map(g => g.name), ...(state.tables.some(t => !groupOf(tableKey(t))) ? [''] : [])];
   fill($('toolbar'),
     h('span', { class: 'tool-label' }, 'Cartes'),
-    seg([['keys', 'Clés', 'Clés primaires et étrangères'], ['all', 'Toutes', 'Toutes les colonnes'], ['none', 'Titre', 'Nom de la table seulement']], ui.cards,
+    seg([['all', 'Toutes', 'Toutes les colonnes'], ['keys', 'Clés', 'Clés primaires et étrangères'], ['none', 'Titre', 'Nom de la table seulement']], ui.cards,
       v => { ui.cards = v; sceneIdentity = null; renderAll(); }),
     h('span', { class: 'tool-label' }, 'Étiquettes'),
     seg([['cols', 'Colonnes', 'Colonnes reliées à chaque bout'], ['names', 'Noms', 'Nom de la référence ou cardinalité'], ['none', 'Aucune']], ui.labels,

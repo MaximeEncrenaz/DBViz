@@ -29,7 +29,7 @@ Two project skills live in `.claude/skills/` (git-ignored) and **must** be follo
 | constellations par période | a schema chosen (selector shown only when the model has several schemas): one constellation per `TableGroup` of that schema, plus « Sans groupe » |
 | voies / simulation de panne | not applicable |
 | Étiquettes *Moyens / Identifiants / Aucune* | *Colonnes* (FK / referenced column names at each end, hidden on edges shorter than 150 px), *Noms* (ref name, else cardinality), *Aucune* |
-| (no equivalent) | « Cartes » toolbar setting: *Clés* (PK + FK columns, then « + n colonnes », default), *Toutes*, *Titre* (name and column count) |
+| (no equivalent) | « Cartes » toolbar setting: *Toutes* (default), *Clés* (PK + FK columns, then « + n colonnes »), *Titre* (name and column count) |
 | (no equivalent) | self-references (`categories.parent_id > categories.id`) are drawn as a loop on the right of the card (`edgeGeom`, `kind: 'self'`) |
 
 ## Hard constraint: one self-contained file
