@@ -48,6 +48,7 @@ button, select, input, textarea { font: inherit; color: inherit; }
 .btn.primary:hover { filter: brightness(1.08); }
 .btn.small { height: 24px; padding: 0 8px; font-size: 12px; }
 .btn.danger { color: var(--err); }
+.btn.on { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
 .btn.lock svg { display: block; }
 .btn.lock.on { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); font-weight: 600; }
 .icon { width: 22px; height: 22px; border: 0; background: none; border-radius: 4px; cursor: pointer; color: var(--muted); display: inline-grid; place-items: center; padding: 0; }
@@ -277,6 +278,7 @@ const ui = {
   schema: '',           // schéma choisi (constellations par groupe)
   labels: 'cols',       // étiquettes des traits : cols | names | none
   cards: 'keys',        // contenu des cartes : keys | all | none
+  spread: true,         // graphe éclaté (par défaut) : cartes espacées, croisements réduits, traits qui contournent les cartes
   hideRel: new Set(),   // cardinalités masquées
   hideGroups: new Set(),// groupes masqués ('' = tables sans groupe)
   tab: 'detail',
@@ -930,6 +932,90 @@ function edgesFor(ls, keyOf) {
   return edges;
 }
 
+/* Graphe éclaté (bouton « Éclater ») : écarts entre cartes agrandis, cartes interchangeables échangées tant que
+   cela réduit croisements et traits passant sur une carte, puis chaque trait courbé pour contourner les cartes. */
+const spread = (v, k) => (ui.spread ? v * k : v);
+const boxOf = (k, p, z, m = 8) => ({ k, x1: p.x - z.w / 2 - m, x2: p.x + z.w / 2 + m, y1: p.y - z.h / 2 - m, y2: p.y + z.h / 2 + m });
+const orient = (a, b, c) => Math.sign((b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x));
+const segsCross = (a, b, c, d) => orient(a, b, c) * orient(a, b, d) < 0 && orient(c, d, a) * orient(c, d, b) < 0;
+// Le segment [a, b] traverse-t-il le rectangle q ? (découpage de Liang-Barsky)
+function segHitsBox(a, b, q) {
+  let t0 = 0, t1 = 1;
+  const dx = b.x - a.x, dy = b.y - a.y;
+  for (const [p, v] of [[-dx, a.x - q.x1], [dx, q.x2 - a.x], [-dy, a.y - q.y1], [dy, q.y2 - a.y]]) {
+    if (!p) { if (v < 0) return false; continue; }
+    const r = v / p;
+    if (p < 0) { if (r > t1) return false; t0 = Math.max(t0, r); } else { if (r < t0) return false; t1 = Math.min(t1, r); }
+  }
+  return true;
+}
+
+/* pools : [{ slots, keys, place(slot, key) }], keys[i] occupe slots[i]. Échanges deux à deux, gardés s'ils font
+   baisser le coût (croisement = 1, trait sur une carte = 3), dans un budget de calcul fixe (résultat déterministe). */
+function untangle(target, size, edges, pools) {
+  const links = edges.filter(e => e.kind === 'd');
+  const P = k => target.get(k);
+  const keys = [...target.keys()];
+  const touches = (e, f) => e.from === f.from || e.from === f.to || e.to === f.from || e.to === f.to;
+  const hitCost = (e, ks) => ks.reduce((c, k) => c + (k !== e.from && k !== e.to && segHitsBox(P(e.from), P(e.to), boxOf(k, P(k), size(k), 10)) ? 3 : 0), 0);
+  let work = 0;
+  const cost = moved => {
+    const mine = links.filter(e => moved.includes(e.from) || moved.includes(e.to));
+    const idx = new Map(mine.map((e, i) => [e, i]));
+    let c = 0;
+    mine.forEach((e, i) => {
+      for (const f of links) if (f !== e && !(idx.get(f) < i) && !touches(e, f) && segsCross(P(e.from), P(e.to), P(f.from), P(f.to))) c++;
+      c += hitCost(e, keys);
+    });
+    for (const e of links) if (!idx.has(e)) c += hitCost(e, moved);
+    work += mine.length * (links.length + keys.length) + links.length;
+    return c;
+  };
+  for (let pass = 0; pass < 4; pass++) {
+    let better = false;
+    for (const pool of pools) for (let i = 0; i < pool.keys.length; i++) for (let j = i + 1; j < pool.keys.length; j++) {
+      if (work > 4e6) return;
+      const a = pool.keys[i], b = pool.keys[j];
+      const swap = () => {
+        [pool.keys[i], pool.keys[j]] = [pool.keys[j], pool.keys[i]];
+        for (const q of [i, j]) target.set(pool.keys[q], pool.place(pool.slots[q], pool.keys[q]));
+      };
+      const before = cost([a, b]);
+      swap();
+      if (cost([a, b]) < before) better = true;
+      else swap();
+    }
+    if (!better) break;
+  }
+}
+
+// Un trait qui traverserait une carte est courbé du côté le plus dégagé (essais de décalage croissants).
+function routeEdges(edges, target, boxes) {
+  const tries = [30, -30, 60, -60, 95, -95, 140, -140, ...(ui.spread ? [200, -200, 270, -270, 350, -350] : [])];
+  for (const e of edges) {
+    if (e.kind !== 'd') continue;
+    const a = target.get(e.from), b = target.get(e.to), lo = target.get(e.lo), hi = target.get(e.hi);
+    const nx = -(hi.y - lo.y), ny = hi.x - lo.x, nl = Math.hypot(nx, ny) || 1;
+    const hits = off => {
+      const cx = (a.x + b.x) / 2 + (nx / nl) * off * 2, cy = (a.y + b.y) / 2 + (ny / nl) * off * 2;
+      let n = 0;
+      for (let i = 1; i < 20; i++) {
+        const t = i / 20, u = 1 - t, px = u * u * a.x + 2 * u * t * cx + t * t * b.x, py = u * u * a.y + 2 * u * t * cy + t * t * b.y;
+        n += boxes.filter(q => q.k !== e.from && q.k !== e.to && px > q.x1 && px < q.x2 && py > q.y1 && py < q.y2).length;
+      }
+      return n;
+    };
+    const base = e.offset;
+    let best = base, bestHits = hits(base);
+    for (const d of tries) {
+      if (!bestHits) break;
+      const n = hits(base + d);
+      if (n < bestHits) { best = base + d; bestHits = n; }
+    }
+    e.offset = best;
+  }
+}
+
 function sceneSpec() {
   const vis = visibleRefs();
   const inSchema = r => !ui.schema || [r.from.table, r.to.table].some(k => schemaOf(tableByKey(k)) === ui.schema);
@@ -973,17 +1059,24 @@ function constellation(ls, center, title, pre, extra = []) {
   }
   const ring = keys.filter(k => k !== hub).sort((a, b) => groupIndex(a) - groupIndex(b) || a.localeCompare(b));
   const n = ring.length;
-  const span = ring.reduce((t, k) => { const c = cardSize(k); return t + Math.max(c.w, c.h) + 50; }, 0);
+  const span = ring.reduce((t, k) => { const c = cardSize(k); return t + Math.max(c.w, c.h) + spread(50, 3); }, 0);
   const core = hub ? Math.hypot(cardSize(hub).w, cardSize(hub).h) / 2 : 0;
-  const R = Math.max(hub ? 230 : 130, span / (2 * Math.PI), core + Math.max(0, ...ring.map(k => cardSize(k).h)) + 60);
+  const R = Math.max(spread(hub ? 230 : 130, 1.4), span / (2 * Math.PI), core + Math.max(0, ...ring.map(k => cardSize(k).h)) + spread(60, 2));
   const keyOf = k => `${pre}t:${k}`;
   const target = new Map();
   if (hub) target.set(keyOf(hub), { x: 0, y: 0 });
-  ring.forEach((k, i) => {
+  const slots = ring.map((k, i) => {
     const a = -Math.PI / 2 + (2 * Math.PI * i) / (n || 1);
-    target.set(keyOf(k), n === 1 && !hub ? { x: 0, y: 0 } : { x: R * Math.cos(a), y: R * Math.sin(a) });
+    return n === 1 && !hub ? { x: 0, y: 0 } : { x: R * Math.cos(a), y: R * Math.sin(a) };
   });
+  ring.forEach((k, i) => target.set(keyOf(k), { ...slots[i] }));
   const edges = edgesFor(ls.filter(r => deg.has(r.from.table) && deg.has(r.to.table)), keyOf);
+  if (ui.spread) {
+    const tkOf = new Map(keys.map(k => [keyOf(k), k]));
+    const size = key => cardSize(tkOf.get(key));
+    untangle(target, size, edges, [{ slots, keys: ring.map(keyOf), place: q => ({ ...q }) }]);
+    routeEdges(edges, target, [...target].map(([k, p]) => boxOf(k, p, size(k))));
+  }
   const nodes = keys.map(k => ({ key: keyOf(k), tk: k, gid: groupName(k), center: k === hub }));
   const top = Math.min(...[...target.values()].map(p => p.y)) - Math.max(...keys.map(k => cardSize(k).h)) / 2;
   return { nodes, edges, target, titles: [{ x: 0, y: top - 34, text: `${title} — ${plural(ls.length, 'référence')}` }], R: R + 140 };
@@ -1057,7 +1150,7 @@ function flowLayout(ls, title, pre, center = null, extra = []) {
   for (const dir of [-1, 1]) {
     let prev = 0;
     for (const c of cols.filter(v => v * dir > 0).sort((a, b) => Math.abs(a) - Math.abs(b))) {
-      xOf.set(c, xOf.get(prev) + dir * (half(prev) + half(c) + FLOW_GAP_X));
+      xOf.set(c, xOf.get(prev) + dir * (half(prev) + half(c) + spread(FLOW_GAP_X, 1.4)));
       prev = c;
     }
   }
@@ -1069,7 +1162,7 @@ function flowLayout(ls, title, pre, center = null, extra = []) {
   const stack = (list, want) => {
     const ys = [];
     list.forEach((k, i) => {
-      const min = i ? ys[i - 1] + (size.get(list[i - 1]).h + size.get(k).h) / 2 + FLOW_GAP_Y : -Infinity;
+      const min = i ? ys[i - 1] + (size.get(list[i - 1]).h + size.get(k).h) / 2 + spread(FLOW_GAP_Y, 3) : -Infinity;
       ys.push(Math.max(want.get(k), min));
     });
     const shift = list.reduce((t, k, i) => t + want.get(k) - ys[i], 0) / list.length;
@@ -1093,30 +1186,8 @@ function flowLayout(ls, title, pre, center = null, extra = []) {
 
   const target = new Map(keys.map(k => [k, { x: xOf.get(col.get(k)), y: y.get(k) }]));
   const edges = edgesFor(links, keyOf);
-  // Un trait qui traverserait une carte est courbé du côté le plus dégagé.
-  const boxes = keys.map(k => { const t = target.get(k), z = size.get(k); return { k, x1: t.x - z.w / 2 - 8, x2: t.x + z.w / 2 + 8, y1: t.y - z.h / 2 - 8, y2: t.y + z.h / 2 + 8 }; });
-  for (const e of edges) {
-    if (e.kind !== 'd') continue;
-    const a = target.get(e.from), b = target.get(e.to), lo = target.get(e.lo), hi = target.get(e.hi);
-    const nx = -(hi.y - lo.y), ny = hi.x - lo.x, nl = Math.hypot(nx, ny) || 1;
-    const hits = off => {
-      const cx = (a.x + b.x) / 2 + (nx / nl) * off * 2, cy = (a.y + b.y) / 2 + (ny / nl) * off * 2;
-      let n = 0;
-      for (let i = 1; i < 20; i++) {
-        const t = i / 20, u = 1 - t, px = u * u * a.x + 2 * u * t * cx + t * t * b.x, py = u * u * a.y + 2 * u * t * cy + t * t * b.y;
-        n += boxes.filter(q => q.k !== e.from && q.k !== e.to && px > q.x1 && px < q.x2 && py > q.y1 && py < q.y2).length;
-      }
-      return n;
-    };
-    const base = e.offset;
-    let best = base, bestHits = hits(base);
-    for (const d of [30, -30, 60, -60, 95, -95, 140, -140]) {
-      if (!bestHits) break;
-      const n = hits(base + d);
-      if (n < bestHits) { best = base + d; bestHits = n; }
-    }
-    e.offset = best;
-  }
+  const boxes = keys.map(k => boxOf(k, target.get(k), size.get(k)));
+  routeEdges(edges, target, boxes);
   const nodes = tables.map(k => ({ key: keyOf(k), tk: k, gid: groupName(k), center: k === hub, scale: scale.get(keyOf(k)) }));
   const top = Math.min(...boxes.map(q => q.y1));
   const extent = Math.max(...boxes.map(q => Math.max(Math.abs(q.x1), Math.abs(q.x2), Math.abs(q.y1), Math.abs(q.y2))));
@@ -1170,11 +1241,13 @@ function planTargets(sc) {
   const blocks = [...state.groups.map(g => g.name), ''].filter(gid => byGroup.has(gid)).map(gid => {
     const ns = byGroup.get(gid).sort((a, b) => (deg.get(b.key) || 0) - (deg.get(a.key) || 0) || a.tk.localeCompare(b.tk));
     const sizes = ns.map(n => cardSize(n.tk));
-    const cw = Math.max(...sizes.map(z => z.w)) + CELL_GAP_X;
-    const avgH = sizes.reduce((t, z) => t + z.h, 0) / sizes.length + CELL_GAP_Y;
+    const cw = Math.max(...sizes.map(z => z.w)) + spread(CELL_GAP_X, 4);
+    const avgH = sizes.reduce((t, z) => t + z.h, 0) / sizes.length + spread(CELL_GAP_Y, 3);
     const cols = Math.max(1, Math.round(Math.sqrt((ns.length * avgH) / cw * 1.6)));
+    // Éclaté : lignes de même hauteur, pour que deux cartes du groupe puissent échanger leurs places.
+    const maxH = Math.max(...sizes.map(z => z.h));
     const rowH = [];
-    ns.forEach((n, k) => { const r = Math.floor(k / cols); rowH[r] = Math.max(rowH[r] || 0, sizes[k].h + CELL_GAP_Y); });
+    ns.forEach((n, k) => { const r = Math.floor(k / cols); rowH[r] = Math.max(rowH[r] || 0, (ui.spread ? maxH : sizes[k].h) + spread(CELL_GAP_Y, 3)); });
     return { gid, ns, sizes, cols, cw, rowH, w: Math.min(cols, ns.length) * cw, h: rowH.reduce((t, x) => t + x, 0) };
   });
 
@@ -1205,20 +1278,28 @@ function planTargets(sc) {
   const colW = Array(gc).fill(0), rowH = Array(gr).fill(0);
   for (const [i, slot] of at) { colW[slot.c] = Math.max(colW[slot.c], blocks[i].w); rowH[slot.r] = Math.max(rowH[slot.r], blocks[i].h); }
   const starts = (sizes, gap) => sizes.map((_, k) => sizes.slice(0, k).reduce((t, x) => t + x + gap, 0));
-  const colX = starts(colW, GROUP_GAP_X), rowY = starts(rowH, GROUP_GAP_Y);
+  const colX = starts(colW, spread(GROUP_GAP_X, 1.6)), rowY = starts(rowH, spread(GROUP_GAP_Y, 1.8));
   const offX = (colX[gc - 1] + colW[gc - 1]) / 2, offY = (rowY[gr - 1] + rowH[gr - 1]) / 2;
 
-  const target = new Map();
+  const target = new Map(), pools = [];
+  const place = (q, key) => ({ x: q.x, y: q.top + cardSize(key).h / 2 });
   for (const [i, slot] of at) {
     const b = blocks[i];
     const cx = colX[slot.c] + colW[slot.c] / 2 - offX, top = rowY[slot.r] + (rowH[slot.r] - b.h) / 2 - offY;
-    b.ns.forEach((node, k) => {
+    const slots = b.ns.map((node, k) => {
       const row = Math.floor(k / b.cols), inRow = Math.min(b.cols, b.ns.length - row * b.cols);
-      const y0 = top + b.rowH.slice(0, row).reduce((t, x) => t + x, 0);
-      target.set(node.key, { x: cx - b.w / 2 + ((Math.min(b.cols, b.ns.length) - inRow) * b.cw) / 2 + b.cw * (k % b.cols + 0.5), y: y0 + b.sizes[k].h / 2 });
+      return { x: cx - b.w / 2 + ((Math.min(b.cols, b.ns.length) - inRow) * b.cw) / 2 + b.cw * (k % b.cols + 0.5), top: top + b.rowH.slice(0, row).reduce((t, x) => t + x, 0) };
     });
+    b.ns.forEach((node, k) => target.set(node.key, place(slots[k], node.key)));
+    // Les cartes déplacées à la main ne participent pas aux échanges.
+    const free = b.ns.map((n, k) => k).filter(k => !planPos.has(b.ns[k].key));
+    pools.push({ slots: free.map(k => slots[k]), keys: free.map(k => b.ns[k].key), place });
   }
   for (const [k, p] of planPos) if (target.has(k)) target.set(k, { ...p });
+  if (ui.spread) {
+    untangle(target, cardSize, sc.edges, pools);
+    routeEdges(sc.edges, target, [...target].map(([k, p]) => boxOf(k, p, cardSize(k))));
+  }
   return target;
 }
 
@@ -1364,6 +1445,14 @@ function fitCamera(targets) {
   for (const n of scene.nodes) {
     const t = targets.get(n.key), el = nodeEls.get(n.key);
     boxes.push([t.x - el.w / 2, t.y - el.h / 2, t.x + el.w / 2 + (scene.edges.some(e => e.kind === 'self' && e.from === n.key) ? 70 : 0), t.y + el.h / 2]);
+  }
+  // Sommet des traits très courbés (contournements du graphe éclaté).
+  for (const e of scene.edges) {
+    if (e.kind !== 'd' || Math.abs(e.offset) < 100) continue;
+    const a = targets.get(e.from), b = targets.get(e.to), lo = targets.get(e.lo), hi = targets.get(e.hi);
+    const nx = -(hi.y - lo.y), ny = hi.x - lo.x, nl = Math.hypot(nx, ny) || 1;
+    const x = (a.x + b.x) / 2 + (nx / nl) * e.offset, y = (a.y + b.y) / 2 + (ny / nl) * e.offset;
+    boxes.push([x - 10, y - 10, x + 10, y + 10]);
   }
   for (const t of scene.titles) boxes.push([t.x - 200, t.y - 22, t.x + 200, t.y + 8]);
   for (const x of hullEls) { const r = hullRect(x.gid, k => targets.get(k)); boxes.push([r.x1, r.y1 - 24, r.x2, r.y2]); }
@@ -1930,6 +2019,8 @@ function renderHeader() {
   for (const b of $('actions').querySelectorAll('.btn.small')) b.classList.remove('small');
 }
 
+$('lock').addEventListener('click', () => setEditMode(!ui.edit));
+
 $('docname').addEventListener('change', e => {
   if (!ui.edit) return;
   if (!state.project) state.project = { name: '', settings: [], note: '' };
@@ -1999,6 +2090,11 @@ function renderToolbar() {
         h('div', { class: 'legend-row' }, legendSwatch('>', true), 'Clé étrangère facultative (nullable)'),
         h('div', { class: 'legend-row' }, h('b', { class: 'tag pk' }, 'PK'), ' clé primaire  ', h('b', { class: 'tag' }, 'FK'), ' clé étrangère'),
         h('span', { class: 'hint' }, 'La flèche va de la table qui porte la clé étrangère vers la table référencée.'))),
+    h('button', {
+      class: 'btn small' + (ui.spread ? ' on' : ''), type: 'button', 'aria-pressed': String(ui.spread),
+      title: 'Espacer les cartes, réduire les croisements et faire contourner les cartes par les flèches',
+      onclick: () => { ui.spread = !ui.spread; sceneIdentity = null; renderAll(); },
+    }, 'Éclater'),
     h('button', { class: 'btn small', type: 'button', onclick: recenter, title: 'Recadrer la scène' }, 'Recentrer'),
     h('span', { class: 'grow' }),
     ui.edit

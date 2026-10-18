@@ -21,3 +21,6 @@ node_modules/
 
 # Réglages locaux de Claude Code
 .claude/settings.local.json
+
+# Skills : copies de ../skills/ (source de vérité partagée avec UrbaComm), non versionnées ici
+.claude/skills/
