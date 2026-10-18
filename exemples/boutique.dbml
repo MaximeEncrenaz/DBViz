@@ -1,0 +1,112 @@
+// Exemple : base d'une boutique en ligne.
+// Sert de jeu de démonstration (bouton « Exemple ») et de modèle pour préparer un import.
+
+Project boutique {
+  database_type: 'PostgreSQL'
+  Note: 'Boutique en ligne : clients, catalogue, commandes et paiements.'
+}
+
+Enum statut_commande {
+  brouillon
+  validee [note: 'Payée, en attente de préparation']
+  expediee
+  livree
+  annulee
+}
+
+Table clients [headercolor: #0f6c7a] {
+  id integer [pk, increment]
+  email varchar(255) [unique, not null]
+  nom varchar(120) [not null]
+  cree_le timestamp [default: `now()`]
+  Note: 'Une ligne par compte client.'
+}
+
+Table adresses {
+  id integer [pk, increment]
+  client_id integer [not null, ref: > clients.id]
+  ligne1 varchar(255) [not null]
+  code_postal varchar(10)
+  ville varchar(120)
+  pays char(2) [default: 'FR']
+}
+
+Table profils {
+  client_id integer [pk]
+  telephone varchar(20)
+  newsletter boolean [default: false]
+}
+
+Table categories {
+  id integer [pk, increment]
+  parent_id integer
+  libelle varchar(120) [not null]
+}
+
+Table produits {
+  id integer [pk, increment]
+  categorie_id integer [not null]
+  reference varchar(30) [unique, not null]
+  libelle varchar(255) [not null]
+  prix_ht decimal(10, 2) [not null]
+  indexes {
+    (categorie_id, libelle)
+    reference [unique, name: 'idx_produits_reference']
+  }
+}
+
+Table fournisseurs {
+  id integer [pk, increment]
+  raison_sociale varchar(255) [not null]
+}
+
+Table commandes {
+  id integer [pk, increment]
+  client_id integer [not null]
+  adresse_livraison_id integer
+  statut statut_commande [not null, default: 'brouillon']
+  passee_le timestamp
+}
+
+Table lignes_commande {
+  commande_id integer [pk]
+  numero smallint [pk]
+  produit_id integer [not null]
+  quantite integer [not null, default: 1]
+  prix_unitaire decimal(10, 2) [not null]
+}
+
+Table paiements {
+  id integer [pk, increment]
+  commande_id integer [not null]
+  montant decimal(10, 2) [not null]
+  moyen varchar(20) [note: 'carte, virement, avoir…']
+}
+
+TableGroup clientele [color: #0f6c7a] {
+  clients
+  adresses
+  profils
+}
+
+TableGroup catalogue [color: #7a4f0f] {
+  categories
+  produits
+  fournisseurs
+}
+
+TableGroup ventes [color: #6b2f7a] {
+  commandes
+  lignes_commande
+  paiements
+}
+
+Ref: profils.client_id - clients.id [delete: cascade]
+Ref: categories.parent_id > categories.id
+Ref: produits.categorie_id > categories.id
+Ref: produits.id <> fournisseurs.id
+Ref: commandes.client_id > clients.id
+Ref: commandes.adresse_livraison_id > adresses.id [delete: set null]
+Ref: lignes_commande.commande_id > commandes.id [delete: cascade]
+Ref: lignes_commande.produit_id > produits.id
+Ref: paiements.commande_id > commandes.id

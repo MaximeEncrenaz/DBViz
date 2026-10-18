@@ -1,0 +1,23 @@
+# Exports téléchargés depuis l'application (les exemples versionnés sont dans exemples/)
+/*.dbml
+/*.svg
+/*.png
+
+# Captures et fichiers de vérification
+/shot*.png
+/tmp/
+
+# Éditeurs / système
+.vscode/
+.idea/
+*.swp
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# Outils éventuels
+node_modules/
+*.log
+
+# Réglages locaux de Claude Code
+.claude/settings.local.json

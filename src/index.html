@@ -1,0 +1,694 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- Hors ligne garanti : aucune ressource externe ni requête réseau, même si une donnée importée tentait d'en provoquer. -->
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline'; style-src 'unsafe-inline'; img-src data: blob:; base-uri 'none'; form-action 'none'">
+<title>DBViz</title>
+<style>
+/* Bandeau, puis deux colonnes : graphe | détail. Polices système uniquement (hors ligne). */
+:root {
+  --bg: #e8ecf0; --surface: #ffffff; --surface-2: #f4f6f8; --ink: #142230; --muted: #5b6979; --line: #d5dce3;
+  --accent: #0f6c7a; --accent-ink: #ffffff; --accent-soft: #dcedf0;
+  --canvas: #f3f6f8; --grid: rgba(20, 34, 48, .07);
+  --ok: #2f7d4f; --ok-soft: #e1f1e6; --warn: #b46f06; --warn-soft: #fbeed5; --err: #b8322a; --err-soft: #f8e0dd;
+  --f-display: "Bahnschrift SemiCondensed", Bahnschrift, "Arial Narrow", "Segoe UI", sans-serif;
+  --f-body: "Segoe UI Variable Text", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --f-mono: "Cascadia Mono", Consolas, ui-monospace, Menlo, monospace;
+  color-scheme: light;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --bg: #0b1117; --surface: #131c25; --surface-2: #18232e; --ink: #e2e9ef; --muted: #91a2b2; --line: #25323e;
+    --accent: #4fb8c4; --accent-ink: #04181b; --accent-soft: #143a40;
+    --canvas: #0f171e; --grid: rgba(255, 255, 255, .05);
+    --ok: #5cc489; --ok-soft: #15301f; --warn: #f0ac3e; --warn-soft: #382a10; --err: #f06a5d; --err-soft: #3b1b19;
+    color-scheme: dark;
+  }
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+html, body { height: 100%; margin: 0; }
+body { background: var(--bg); color: var(--ink); font: 14px/1.45 var(--f-body); display: grid; grid-template-rows: auto minmax(0, 1fr); }
+h1, h2, h3 { font-family: var(--f-display); font-stretch: semi-condensed; margin: 0; text-wrap: balance; }
+button, select, input, textarea { font: inherit; color: inherit; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+.mono { font-family: var(--f-mono); font-size: .88em; }
+.muted { color: var(--muted); }
+.grow { flex: 1; min-width: 0; }
+.label { font-family: var(--f-display); font-stretch: semi-condensed; font-weight: 600; font-size: 11.5px; letter-spacing: .1em; text-transform: uppercase; color: var(--muted); }
+
+.btn { border: 1px solid var(--line); background: var(--surface); border-radius: 6px; padding: 6px 12px; cursor: pointer; font-weight: 500; display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.btn:hover { border-color: var(--accent); }
+.btn.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); }
+.btn.small { padding: 3px 9px; font-size: 12.5px; }
+.btn.lock svg { display: block; }
+.btn.lock.on { background: var(--warn-soft); border-color: var(--warn); color: var(--warn); font-weight: 600; }
+
+header { display: flex; align-items: center; gap: 12px; padding: 10px 16px; background: var(--surface); border-bottom: 1px solid var(--line); box-shadow: 0 1px 2px rgba(10, 20, 30, .05); }
+/* En édition, le bandeau porte un liseré de la couleur du cadenas ouvert. */
+body.editing header { box-shadow: inset 0 -3px 0 var(--warn), 0 1px 2px rgba(10, 20, 30, .05); }
+.brand { font-family: var(--f-display); font-weight: 700; font-size: 18px; letter-spacing: .02em; }
+.docname { border: 1px solid transparent; border-radius: 6px; background: none; padding: 4px 8px; font-weight: 600; min-width: 0; width: 22ch; }
+.docname:not(:disabled):hover { border-color: var(--line); }
+.docname:disabled { color: var(--ink); }
+.sep { width: 1px; align-self: stretch; background: var(--line); }
+
+main { display: grid; grid-template-columns: minmax(0, 1fr) 340px; min-height: 0; }
+.view { position: relative; min-height: 0; display: grid; grid-template-rows: auto minmax(0, 1fr); }
+.toolbar { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-bottom: 1px solid var(--line); background: var(--surface-2); }
+.canvas { position: relative; overflow: hidden; background-color: var(--canvas); background-image: radial-gradient(var(--grid) 1px, transparent 1px); background-size: 22px 22px; }
+.canvas svg { position: absolute; inset: 0; width: 100%; height: 100%; }
+.placeholder { position: absolute; inset: 0; display: grid; place-content: center; text-align: center; gap: 6px; padding: 24px; color: var(--muted); }
+aside { border-left: 1px solid var(--line); background: var(--surface); overflow: auto; padding: 14px 16px; display: grid; align-content: start; gap: 14px; }
+.stats { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
+.stat { background: var(--surface-2); border-radius: 8px; padding: 8px 10px; }
+.stat b { display: block; font-family: var(--f-display); font-size: 22px; }
+.issues { margin: 0; padding-left: 18px; }
+.issues li { color: var(--warn); }
+.hint { font-size: 12.5px; color: var(--muted); }
+.toast { position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--surface); padding: 8px 14px; border-radius: 8px; font-size: 13px; z-index: 30; }
+.toast.err { background: var(--err); color: #fff; }
+</style>
+</head>
+<body>
+<header>
+  <span class="brand">DBViz</span>
+  <input id="docname" class="docname" aria-label="Nom du modèle" disabled>
+  <span class="grow"></span>
+  <button id="lock" class="btn lock" type="button"></button>
+  <span class="sep"></span>
+  <span id="actions" style="display:flex; gap:8px"></span>
+</header>
+<main>
+  <section class="view">
+    <div class="toolbar" id="toolbar"></div>
+    <div class="canvas" id="canvas">
+      <svg id="graph" role="img" aria-label="Graphe du modèle de données"></svg>
+      <div class="placeholder" id="placeholder">
+        <strong>Vue graphe à venir</strong>
+        <span>Elle suivra le skill <span class="mono">graphe-reseau</span> : plan d'ensemble par groupe de tables, focus sur une table, focus sur un groupe.</span>
+      </div>
+    </div>
+  </section>
+  <aside id="detail"></aside>
+</main>
+<input type="file" id="file" accept=".dbml,text/plain" hidden>
+
+<script>
+'use strict';
+
+/* ---------- Constantes et état ---------- */
+
+const STORE_KEY = 'dbviz.v1';
+const EDIT_KEY = 'dbviz.edition';
+const MAX_IMPORT = 5 * 1024 * 1024;
+// Copie de exemples/boutique.dbml, régénérée par `node scripts/sync-exemple.js`.
+const SAMPLE = "// Exemple : base d'une boutique en ligne.\n// Sert de jeu de démonstration (bouton « Exemple ») et de modèle pour préparer un import.\n\nProject boutique {\n  database_type: 'PostgreSQL'\n  Note: 'Boutique en ligne : clients, catalogue, commandes et paiements.'\n}\n\nEnum statut_commande {\n  brouillon\n  validee [note: 'Payée, en attente de préparation']\n  expediee\n  livree\n  annulee\n}\n\nTable clients [headercolor: #0f6c7a] {\n  id integer [pk, increment]\n  email varchar(255) [unique, not null]\n  nom varchar(120) [not null]\n  cree_le timestamp [default: `now()`]\n  Note: 'Une ligne par compte client.'\n}\n\nTable adresses {\n  id integer [pk, increment]\n  client_id integer [not null, ref: > clients.id]\n  ligne1 varchar(255) [not null]\n  code_postal varchar(10)\n  ville varchar(120)\n  pays char(2) [default: 'FR']\n}\n\nTable profils {\n  client_id integer [pk]\n  telephone varchar(20)\n  newsletter boolean [default: false]\n}\n\nTable categories {\n  id integer [pk, increment]\n  parent_id integer\n  libelle varchar(120) [not null]\n}\n\nTable produits {\n  id integer [pk, increment]\n  categorie_id integer [not null]\n  reference varchar(30) [unique, not null]\n  libelle varchar(255) [not null]\n  prix_ht decimal(10, 2) [not null]\n  indexes {\n    (categorie_id, libelle)\n    reference [unique, name: 'idx_produits_reference']\n  }\n}\n\nTable fournisseurs {\n  id integer [pk, increment]\n  raison_sociale varchar(255) [not null]\n}\n\nTable commandes {\n  id integer [pk, increment]\n  client_id integer [not null]\n  adresse_livraison_id integer\n  statut statut_commande [not null, default: 'brouillon']\n  passee_le timestamp\n}\n\nTable lignes_commande {\n  commande_id integer [pk]\n  numero smallint [pk]\n  produit_id integer [not null]\n  quantite integer [not null, default: 1]\n  prix_unitaire decimal(10, 2) [not null]\n}\n\nTable paiements {\n  id integer [pk, increment]\n  commande_id integer [not null]\n  montant decimal(10, 2) [not null]\n  moyen varchar(20) [note: 'carte, virement, avoir…']\n}\n\nTableGroup clientele [color: #0f6c7a] {\n  clients\n  adresses\n  profils\n}\n\nTableGroup catalogue [color: #7a4f0f] {\n  categories\n  produits\n  fournisseurs\n}\n\nTableGroup ventes [color: #6b2f7a] {\n  commandes\n  lignes_commande\n  paiements\n}\n\nRef: profils.client_id - clients.id [delete: cascade]\nRef: categories.parent_id > categories.id\nRef: produits.categorie_id > categories.id\nRef: produits.id <> fournisseurs.id\nRef: commandes.client_id > clients.id\nRef: commandes.adresse_livraison_id > adresses.id [delete: set null]\nRef: lignes_commande.commande_id > commandes.id [delete: cascade]\nRef: lignes_commande.produit_id > produits.id\nRef: paiements.commande_id > commandes.id\n"; // @sample
+
+let state = emptyModel();
+let issues = [];
+const ui = { edit: false, selected: null };
+
+function emptyModel() {
+  return { project: null, tables: [], refs: [], enums: [], groups: [], notes: [] };
+}
+
+/* ---------- Aides DOM ---------- */
+
+// h() aplatit les enfants (tableaux, null ignorés) ; le texte est toujours posé en nœud texte.
+function h(tag, attrs, ...children) {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) {
+    if (v == null || v === false) continue;
+    if (k.startsWith('on')) el.addEventListener(k.slice(2), v);
+    else if (k === 'class') el.className = v;
+    else el.setAttribute(k, v === true ? '' : v);
+  }
+  fill(el, ...children);
+  return el;
+}
+function fill(el, ...children) {
+  el.textContent = '';
+  for (const c of children.flat(Infinity)) if (c != null && c !== false) el.append(c instanceof Node ? c : String(c));
+  return el;
+}
+const $ = id => document.getElementById(id);
+
+function toast(text, isErr) {
+  const t = h('div', { class: 'toast' + (isErr ? ' err' : ''), role: 'status' }, text);
+  document.body.append(t);
+  setTimeout(() => t.remove(), isErr ? 5000 : 2500);
+}
+
+/* ---------- DBML : lecture ---------- */
+
+class DbmlError extends Error {
+  constructor(msg, line) { super(line ? `Ligne ${line} : ${msg}` : msg); this.line = line; }
+}
+
+function tokenize(src) {
+  const toks = [];
+  let i = 0, line = 1;
+  const push = (type, value, start) => toks.push({ type, value, line, start, end: i });
+  while (i < src.length) {
+    const c = src[i], start = i;
+    if (c === '\n') { i++; push('nl', '\n', start); line++; continue; }
+    if (c === ' ' || c === '\t' || c === '\r' || c === '\ufeff') { i++; continue; }
+    if (src.startsWith('//', i)) { while (i < src.length && src[i] !== '\n') i++; continue; }
+    if (src.startsWith('/*', i)) {
+      const e = src.indexOf('*/', i + 2);
+      if (e < 0) throw new DbmlError('commentaire /* non fermé', line);
+      line += (src.slice(i, e).match(/\n/g) || []).length;
+      i = e + 2; continue;
+    }
+    if (src.startsWith("'''", i)) {
+      const e = src.indexOf("'''", i + 3);
+      if (e < 0) throw new DbmlError("texte ''' non fermé", line);
+      const raw = src.slice(i + 3, e);
+      i = e + 3; push('str', dedent(raw), start);
+      line += (raw.match(/\n/g) || []).length; continue;
+    }
+    if (c === "'" || c === '"' || c === '`') {
+      let j = i + 1, v = '';
+      while (j < src.length && src[j] !== c) {
+        if (src[j] === '\n') throw new DbmlError(`chaîne ${c} non fermée`, line);
+        if (src[j] === '\\' && j + 1 < src.length) { v += src[j + 1]; j += 2; } else v += src[j++];
+      }
+      if (j >= src.length) throw new DbmlError(`chaîne ${c} non fermée`, line);
+      i = j + 1; push(c === "'" ? 'str' : c === '"' ? 'qid' : 'expr', v, start); continue;
+    }
+    if (c === '<' && src[i + 1] === '>') { i += 2; push('p', '<>', start); continue; }
+    let m;
+    if (c === '#' && (m = /^#[0-9a-fA-F]{3,8}\b/.exec(src.slice(i, i + 10)))) { i += m[0].length; push('word', m[0], start); continue; }
+    if ((m = /^[\p{L}\p{N}_$]+/u.exec(src.slice(i, i + 256)))) { i += m[0].length; push('word', m[0], start); continue; }
+    if ('{}[]():,.<>-~;'.includes(c)) { i++; push('p', c, start); continue; }
+    throw new DbmlError(`caractère inattendu « ${c} »`, line);
+  }
+  toks.push({ type: 'eof', value: '', line, start: i, end: i });
+  return toks;
+}
+
+// Texte ''' sur plusieurs lignes : retire l'indentation commune et les lignes vides de bord.
+function dedent(s) {
+  const lines = s.replace(/\r/g, '').split('\n');
+  while (lines.length && !lines[0].trim()) lines.shift();
+  while (lines.length && !lines[lines.length - 1].trim()) lines.pop();
+  const ind = Math.min(...lines.filter(l => l.trim()).map(l => /^\s*/.exec(l)[0].length));
+  return lines.map(l => l.slice(Number.isFinite(ind) ? ind : 0)).join('\n');
+}
+
+function parseDbml(src) {
+  const toks = tokenize(src);
+  let p = 0;
+  const peek = (o = 0) => toks[p + o];
+  const next = () => toks[p++];
+  const isP = (v, o = 0) => peek(o).type === 'p' && peek(o).value === v;
+  const isW = (v, o = 0) => peek(o).type === 'word' && peek(o).value.toLowerCase() === v;
+  const skipNl = () => { while (peek().type === 'nl') p++; };
+  const fail = (msg, t = peek()) => { throw new DbmlError(msg, t.line); };
+  const expectP = v => { skipNl(); if (!isP(v)) fail(`« ${v} » attendu, « ${peek().value || 'fin du fichier'} » trouvé`); return next(); };
+  const ident = () => {
+    const t = peek();
+    if (t.type !== 'word' && t.type !== 'qid') fail(`nom attendu, « ${t.value || 'fin du fichier'} » trouvé`);
+    return next().value;
+  };
+  const qname = () => { const parts = [ident()]; while (isP('.')) { next(); parts.push(ident()); } return parts; };
+  const text = () => { skipNl(); const t = peek(); if (t.type !== 'str') fail('texte entre apostrophes attendu'); return next().value; };
+
+  // Valeur d'un réglage : chaîne, expression `…` ou texte brut (nombre, true, null, #couleur…).
+  const value = () => {
+    const from = peek();
+    if ((from.type === 'str' || from.type === 'expr') && (isP(',', 1) || isP(']', 1))) { next(); return { kind: from.type, v: from.value }; }
+    const toksIn = [];
+    while (!isP(',') && !isP(']') && peek().type !== 'eof') toksIn.push(next());
+    if (!toksIn.length) fail('valeur attendue');
+    return { kind: 'raw', v: src.slice(toksIn[0].start, toksIn[toksIn.length - 1].end), toks: toksIn };
+  };
+  // [clé, clé: valeur, …] → [{key, value}] ; les clés de plusieurs mots (« not null », « primary key ») sont jointes.
+  const settings = () => {
+    const out = [];
+    if (!isP('[')) return out;
+    next();
+    for (;;) {
+      skipNl();
+      if (isP(']')) { next(); return out; }
+      const words = [];
+      while (peek().type === 'word') words.push(next().value.toLowerCase());
+      if (!words.length) fail('réglage attendu');
+      let val = null;
+      if (isP(':')) { next(); skipNl(); val = value(); }
+      out.push({ key: words.join(' '), value: val });
+      skipNl();
+      if (isP(',')) next(); else if (!isP(']')) fail('« , » ou « ] » attendu');
+    }
+  };
+  const settingText = s => (s.value ? s.value.v : '');
+
+  // Extrémité d'une référence : table.colonne ou schema.table.(col1, col2).
+  const endpoint = (get) => {
+    const parts = [get.ident()];
+    let cols = null;
+    while (get.isP('.')) {
+      get.next();
+      if (get.isP('(')) {
+        get.next(); cols = [get.ident()];
+        while (get.isP(',')) { get.next(); cols.push(get.ident()); }
+        if (!get.isP(')')) fail('« ) » attendu');
+        get.next(); break;
+      }
+      parts.push(get.ident());
+    }
+    if (!cols) { if (parts.length < 2) fail('référence de la forme table.colonne attendue'); cols = [parts.pop()]; }
+    return { table: parts.join('.'), columns: cols };
+  };
+  const mainGet = { ident, isP: v => isP(v), next };
+  const REL = ['>', '<', '-', '<>'];
+  const relOp = () => { if (peek().type !== 'p' || !REL.includes(peek().value)) fail('relation attendue (>, <, - ou <>)'); return next().value; };
+
+  const model = emptyModel();
+  let seq = 0;
+  const pendingRefs = [];
+  const refSettings = (r, list) => {
+    for (const s of list) {
+      if (s.key === 'delete') r.onDelete = settingText(s).toLowerCase();
+      else if (s.key === 'update') r.onUpdate = settingText(s).toLowerCase();
+    }
+  };
+  const addRef = (name, a, op, b, list, line) => {
+    // Normalisation : « < » est retourné en « > », pour que `from` porte toujours la clé étrangère.
+    if (op === '<') { [a, b] = [b, a]; op = '>'; }
+    const r = { id: 'R' + (++seq), name: name || '', from: a, to: b, rel: op, onDelete: '', onUpdate: '', line };
+    refSettings(r, list);
+    pendingRefs.push(r);
+  };
+
+  function parseTable() {
+    const startLine = next().line;
+    const parts = qname();
+    const t = { id: '', schema: parts.length > 1 ? parts.slice(0, -1).join('.') : '', name: parts[parts.length - 1], alias: '', color: '', note: '', columns: [], indexes: '' };
+    if (isW('as')) { next(); t.alias = ident(); }
+    for (const s of settings()) {
+      if (s.key === 'headercolor') t.color = settingText(s);
+      else if (s.key === 'note') t.note = settingText(s);
+    }
+    expectP('{');
+    for (;;) {
+      skipNl();
+      if (isP('}')) { next(); break; }
+      if (peek().type === 'eof') fail(`table ${t.name} non fermée (ouverte ligne ${startLine})`);
+      if (isW('note') && (isP(':', 1) || isP('{', 1))) {
+        next();
+        if (isP(':')) { next(); t.note = text(); } else { next(); t.note = text(); expectP('}'); }
+        continue;
+      }
+      if (isW('indexes') && isP('{', 1)) {
+        next(); const open = next();
+        let depth = 1;
+        while (depth) {
+          const k = next();
+          if (k.type === 'eof') fail('bloc indexes non fermé', open);
+          if (k.type === 'p' && k.value === '{') depth++;
+          if (k.type === 'p' && k.value === '}') depth--;
+          if (!depth) t.indexes = dedent(src.slice(open.end, k.start));
+        }
+        continue;
+      }
+      const line = peek().line;
+      const col = { name: ident(), type: '', pk: false, increment: false, notNull: false, unique: false, default: null, note: '' };
+      const typeToks = [];
+      while (peek().type !== 'nl' && !isP('[') && !isP('}') && peek().type !== 'eof') typeToks.push(next());
+      if (!typeToks.length) fail(`type manquant pour la colonne ${col.name}`);
+      col.type = src.slice(typeToks[0].start, typeToks[typeToks.length - 1].end);
+      for (const s of settings()) {
+        if (s.key === 'pk' || s.key === 'primary key') col.pk = true;
+        else if (s.key === 'increment') col.increment = true;
+        else if (s.key === 'not null') col.notNull = true;
+        else if (s.key === 'null') col.notNull = false;
+        else if (s.key === 'unique') col.unique = true;
+        else if (s.key === 'note') col.note = settingText(s);
+        else if (s.key === 'default') col.default = { kind: s.value.kind, v: s.value.v };
+        else if (s.key === 'ref') {
+          // Référence en ligne (ref: > autre.colonne) : convertie en référence autonome.
+          const vt = s.value && s.value.toks;
+          if (!vt) fail('référence en ligne invalide');
+          let k = 0;
+          const get = {
+            ident: () => { const x = vt[k]; if (!x || (x.type !== 'word' && x.type !== 'qid')) fail('nom attendu dans ref'); k++; return x.value; },
+            isP: v => vt[k] && vt[k].type === 'p' && vt[k].value === v,
+            next: () => vt[k++],
+          };
+          const op = vt[k] && vt[k].type === 'p' && REL.includes(vt[k].value) ? vt[k++].value : fail('relation attendue dans ref');
+          const target = endpoint(get);
+          addRef('', { table: parts.join('.'), columns: [col.name] }, op, target, [], line);
+        }
+      }
+      t.columns.push(col);
+    }
+    model.tables.push(t);
+  }
+
+  function parseRef() {
+    const line = next().line;
+    let name = '';
+    if (peek().type === 'word' || peek().type === 'qid') name = ident();
+    const one = () => {
+      skipNl();
+      const a = endpoint(mainGet);
+      const op = relOp();
+      const b = endpoint(mainGet);
+      addRef(name, a, op, b, settings(), line);
+    };
+    if (isP(':')) { next(); one(); }
+    else { expectP('{'); one(); expectP('}'); }
+  }
+
+  function parseEnum() {
+    next();
+    const parts = qname();
+    const e = { schema: parts.length > 1 ? parts.slice(0, -1).join('.') : '', name: parts[parts.length - 1], values: [] };
+    expectP('{');
+    for (;;) {
+      skipNl();
+      if (isP('}')) { next(); break; }
+      const v = { name: ident(), note: '' };
+      for (const s of settings()) if (s.key === 'note') v.note = settingText(s);
+      e.values.push(v);
+    }
+    model.enums.push(e);
+  }
+
+  function parseGroup() {
+    next();
+    const g = { name: qname().join('.'), color: '', note: '', tables: [] };
+    for (const s of settings()) {
+      if (s.key === 'color') g.color = settingText(s);
+      else if (s.key === 'note') g.note = settingText(s);
+    }
+    expectP('{');
+    for (;;) {
+      skipNl();
+      if (isP('}')) { next(); break; }
+      if (isW('note') && isP(':', 1)) { next(); next(); g.note = text(); continue; }
+      g.tables.push(qname().join('.'));
+    }
+    model.groups.push(g);
+  }
+
+  function parseProject() {
+    next();
+    const pr = { name: '', settings: [], note: '' };
+    if (!isP('{')) pr.name = ident();
+    expectP('{');
+    for (;;) {
+      skipNl();
+      if (isP('}')) { next(); break; }
+      const key = ident();
+      if (key.toLowerCase() === 'note' && isP('{')) { next(); pr.note = text(); expectP('}'); continue; }
+      if (!isP(':')) fail('« : » attendu');
+      next();
+      const t = peek();
+      if (t.type !== 'str' && t.type !== 'word') fail('valeur attendue');
+      next();
+      if (key.toLowerCase() === 'note') pr.note = t.value; else pr.settings.push({ key, value: t.value });
+    }
+    model.project = pr;
+  }
+
+  function parseNote() {
+    next();
+    const n = { name: ident(), text: '' };
+    expectP('{'); n.text = text(); expectP('}');
+    model.notes.push(n);
+  }
+
+  for (;;) {
+    skipNl();
+    const t = peek();
+    if (t.type === 'eof') break;
+    if (isW('table')) parseTable();
+    else if (isW('ref')) parseRef();
+    else if (isW('enum')) parseEnum();
+    else if (isW('tablegroup')) parseGroup();
+    else if (isW('project')) parseProject();
+    else if (isW('note')) parseNote();
+    else fail(`bloc inconnu « ${t.value} » (attendu : Project, Table, Ref, Enum, TableGroup, Note)`);
+  }
+
+  model.refs = pendingRefs;
+  return model;
+}
+
+/* ---------- Modèle : contrôle des références ---------- */
+
+// Clé d'une table : « schema.nom », ou « nom » sans schéma.
+const tableKey = t => (t.schema ? t.schema + '.' : '') + t.name;
+
+// Point d'entrée unique des données non sûres (stockage, import, exemple) : identifiants posés,
+// alias résolus, références pendantes écartées avec un avertissement dans `issues`.
+function normalize(m) {
+  const out = Object.assign(emptyModel(), m);
+  const found = [];
+  const byKey = new Map();
+  out.tables.forEach((t, i) => {
+    t.id = 'T' + (i + 1);
+    if (t.color && !/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(t.color)) { found.push(`Couleur ignorée sur ${tableKey(t)} : ${t.color}`); t.color = ''; }
+    for (const k of [tableKey(t), t.alias, !t.schema ? 'public.' + t.name : null]) if (k) byKey.set(k, t);
+  });
+  const resolve = (end, r) => {
+    const t = byKey.get(end.table) || (!end.table.includes('.') ? null : byKey.get(end.table.replace(/^public\./, '')));
+    if (!t) { found.push(`Référence ${r.name || ''} ligne ${r.line || '?'} : table inconnue « ${end.table} »`.replace('  ', ' ')); return false; }
+    const missing = end.columns.filter(c => !t.columns.some(col => col.name === c));
+    if (missing.length) { found.push(`Référence vers ${tableKey(t)} : colonne inconnue « ${missing.join(', ')} »`); return false; }
+    end.table = tableKey(t);
+    return true;
+  };
+  out.refs = out.refs.filter(r => resolve(r.from, r) && resolve(r.to, r));
+  out.refs.forEach((r, i) => { r.id = 'R' + (i + 1); });
+  for (const g of out.groups) {
+    if (g.color && !/^#[0-9a-fA-F]{3}([0-9a-fA-F]{3})?$/.test(g.color)) { found.push(`Couleur ignorée sur le groupe ${g.name} : ${g.color}`); g.color = ''; }
+    g.tables = g.tables.filter(k => {
+      const t = byKey.get(k);
+      if (!t) found.push(`Groupe ${g.name} : table inconnue « ${k} »`);
+      return !!t;
+    }).map(k => tableKey(byKey.get(k)));
+  }
+  issues = found;
+  return out;
+}
+
+/* ---------- DBML : écriture ---------- */
+
+const qid = s => (/^[A-Za-z_][A-Za-z0-9_]*$/.test(s) ? s : '"' + s.replace(/["\\]/g, '\\$&') + '"');
+const qstr = s => (s.includes('\n') ? "'''\n" + s.replace(/'''/g, "\\'''") + "\n'''" : "'" + s.replace(/['\\]/g, '\\$&') + "'");
+const qval = d => (d.kind === 'str' ? qstr(d.v) : d.kind === 'expr' ? '`' + d.v + '`' : d.v);
+const qend = e => {
+  const t = e.table.split('.').map(qid).join('.');
+  return e.columns.length === 1 ? `${t}.${qid(e.columns[0])}` : `${t}.(${e.columns.map(qid).join(', ')})`;
+};
+const indent = (s, pad) => s.split('\n').map(l => (l ? pad + l : l)).join('\n');
+
+function toDbml(m) {
+  const out = [];
+  if (m.project) {
+    const pr = m.project;
+    out.push(`Project ${pr.name ? qid(pr.name) + ' ' : ''}{`);
+    for (const s of pr.settings) out.push(`  ${s.key}: ${qstr(s.value)}`);
+    if (pr.note) out.push(`  Note: ${qstr(pr.note)}`);
+    out.push('}', '');
+  }
+  for (const e of m.enums) {
+    out.push(`Enum ${(e.schema ? qid(e.schema) + '.' : '') + qid(e.name)} {`);
+    for (const v of e.values) out.push(`  ${qid(v.name)}${v.note ? ` [note: ${qstr(v.note)}]` : ''}`);
+    out.push('}', '');
+  }
+  for (const t of m.tables) {
+    const ts = [];
+    if (t.color) ts.push(`headercolor: ${t.color}`);
+    out.push(`Table ${(t.schema ? qid(t.schema) + '.' : '') + qid(t.name)}${t.alias ? ' as ' + qid(t.alias) : ''}${ts.length ? ` [${ts.join(', ')}]` : ''} {`);
+    for (const c of t.columns) {
+      const cs = [];
+      if (c.pk) cs.push('pk');
+      if (c.increment) cs.push('increment');
+      if (c.unique) cs.push('unique');
+      if (c.notNull) cs.push('not null');
+      if (c.default) cs.push(`default: ${qval(c.default)}`);
+      if (c.note) cs.push(`note: ${qstr(c.note)}`);
+      out.push(`  ${qid(c.name)} ${c.type}${cs.length ? ` [${cs.join(', ')}]` : ''}`);
+    }
+    if (t.indexes) out.push('  indexes {', indent(t.indexes, '    '), '  }');
+    if (t.note) out.push(`  Note: ${qstr(t.note)}`);
+    out.push('}', '');
+  }
+  for (const g of m.groups) {
+    out.push(`TableGroup ${qid(g.name)}${g.color ? ` [color: ${g.color}]` : ''} {`);
+    for (const k of g.tables) out.push('  ' + k.split('.').map(qid).join('.'));
+    if (g.note) out.push(`  Note: ${qstr(g.note)}`);
+    out.push('}', '');
+  }
+  if (m.refs.length) {
+    for (const r of m.refs) {
+      const rs = [];
+      if (r.onDelete) rs.push(`delete: ${r.onDelete}`);
+      if (r.onUpdate) rs.push(`update: ${r.onUpdate}`);
+      out.push(`Ref${r.name ? ' ' + qid(r.name) : ''}: ${qend(r.from)} ${r.rel} ${qend(r.to)}${rs.length ? ` [${rs.join(', ')}]` : ''}`);
+    }
+    out.push('');
+  }
+  for (const n of m.notes) out.push(`Note ${qid(n.name)} {`, `  ${qstr(n.text)}`, '}', '');
+  return out.join('\n').replace(/\n+$/, '\n');
+}
+
+/* ---------- Persistance ---------- */
+
+function save() {
+  try { localStorage.setItem(STORE_KEY, JSON.stringify(state)); } catch (_) { toast('Enregistrement impossible dans ce navigateur', true); }
+}
+// Toute modification : muter `state` en place puis commit().
+function commit() { save(); renderAll(); }
+
+function load() {
+  try {
+    const raw = localStorage.getItem(STORE_KEY);
+    if (raw) { state = normalize(JSON.parse(raw)); return; }
+  } catch (_) { /* stockage illisible : on repart de l'exemple */ }
+  state = SAMPLE ? normalize(parseDbml(SAMPLE)) : emptyModel();
+}
+
+/* ---------- Mode édition (skill mode-edition) ---------- */
+
+function setEditMode(on) {
+  ui.edit = on;
+  try { localStorage.setItem(EDIT_KEY, on ? '1' : '0'); } catch (_) { /* ignoré */ }
+  renderAll();
+}
+try { ui.edit = localStorage.getItem(EDIT_KEY) === '1'; } catch (_) { /* lecture seule */ }
+
+const editorIsOpen = () => !!document.querySelector('dialog[open]');
+// Aide de gabarit : rien hors édition.
+const editBtn = (text, onclick, primary, title) => (ui.edit ? h('button', { class: 'btn small' + (primary ? ' primary' : ''), type: 'button', onclick, title }, text) : null);
+
+const LOCK_PATH = { closed: 'M4 7V4.5a3 3 0 0 1 6 0V7', open: 'M4 7V4.5a3 3 0 0 1 5.8-1' };
+function lockIcon(open) {
+  const ns = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(ns, 'svg');
+  svg.setAttribute('viewBox', '0 0 14 16'); svg.setAttribute('width', '13'); svg.setAttribute('height', '15'); svg.setAttribute('aria-hidden', 'true');
+  const body = document.createElementNS(ns, 'rect');
+  Object.entries({ x: 1.5, y: 7, width: 11, height: 8, rx: 1.6, fill: 'currentColor' }).forEach(([k, v]) => body.setAttribute(k, v));
+  const arc = document.createElementNS(ns, 'path');
+  Object.entries({ d: open ? LOCK_PATH.open : LOCK_PATH.closed, fill: 'none', stroke: 'currentColor', 'stroke-width': 1.8, 'stroke-linecap': 'round' }).forEach(([k, v]) => arc.setAttribute(k, v));
+  svg.append(body, arc);
+  return svg;
+}
+
+document.addEventListener('keydown', e => {
+  if (e.key.toLowerCase() === 'e' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && !editorIsOpen()
+    && !e.target.closest?.('input, select, textarea, [contenteditable]')) {
+    e.preventDefault();
+    setEditMode(!ui.edit);
+  }
+});
+
+/* ---------- Import / export ---------- */
+
+function importDbml() {
+  if (!ui.edit) return;
+  $('file').value = '';
+  $('file').click();
+}
+$('file').addEventListener('change', async () => {
+  const f = $('file').files[0];
+  if (!f || !ui.edit) return;
+  if (f.size > MAX_IMPORT) { toast('Fichier trop volumineux (5 Mo au plus)', true); return; }
+  try {
+    state = normalize(parseDbml(await f.text()));
+    commit();
+    toast(`${f.name} importé : ${state.tables.length} tables, ${state.refs.length} références`);
+  } catch (err) {
+    toast(err instanceof DbmlError ? 'Import impossible. ' + err.message : 'Import impossible : fichier illisible', true);
+  }
+});
+
+function loadSample() {
+  if (!ui.edit || !SAMPLE) return;
+  state = normalize(parseDbml(SAMPLE));
+  commit();
+}
+
+function download(name, text, type) {
+  const url = URL.createObjectURL(new Blob([text], { type }));
+  const a = h('a', { href: url, download: name });
+  document.body.append(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+function exportDbml() {
+  const base = (state.project && state.project.name) || 'modele';
+  download(base.replace(/[^\p{L}\p{N}_-]+/gu, '_') + '.dbml', toDbml(state), 'text/plain;charset=utf-8');
+}
+
+/* ---------- Rendu ---------- */
+
+function renderHeader() {
+  document.body.classList.toggle('editing', ui.edit);
+  const lock = $('lock');
+  lock.classList.toggle('on', ui.edit);
+  lock.title = ui.edit ? 'Verrouiller : repasser en lecture seule (E)' : 'Déverrouiller pour ajouter, modifier ou supprimer (E)';
+  fill(lock, lockIcon(ui.edit), ui.edit ? 'Édition' : 'Lecture seule');
+  const name = $('docname');
+  name.disabled = !ui.edit;
+  if (document.activeElement !== name) name.value = (state.project && state.project.name) || '';
+  name.placeholder = 'Modèle sans nom';
+  fill($('actions'),
+    editBtn('Importer', importDbml, false, 'Remplacer le modèle par un fichier .dbml'),
+    editBtn('Exemple', loadSample, false, "Recharger l'exemple de la boutique"),
+    h('button', { class: 'btn primary', type: 'button', onclick: exportDbml, title: 'Télécharger le modèle au format DBML' }, 'Exporter'));
+}
+
+$('docname').addEventListener('change', e => {
+  if (!ui.edit) return;
+  const v = e.target.value.trim();
+  if (!state.project) state.project = { name: '', settings: [], note: '' };
+  state.project.name = v;
+  commit();
+});
+
+function renderToolbar() {
+  fill($('toolbar'),
+    h('span', { class: 'label' }, 'Plan d\'ensemble'),
+    h('span', { class: 'grow' }),
+    ui.edit
+      ? h('span', { class: 'hint' }, 'Double-clic sur le fond : nouvelle table · glisser d\'une table à une autre : nouvelle référence · Maj + glisser : déplacer')
+      : h('span', { class: 'hint' }, 'Déverrouillez le cadenas pour ajouter ou modifier des tables et des références.'));
+}
+
+function renderGraph() {
+  // À implémenter selon le skill graphe-reseau (scènes, mise en page, transitions, gestes d'édition).
+  $('placeholder').hidden = false;
+}
+
+function renderDetail() {
+  const nCols = state.tables.reduce((n, t) => n + t.columns.length, 0);
+  const stat = (n, label) => h('div', { class: 'stat' }, h('b', null, n), h('span', { class: 'muted' }, label));
+  fill($('detail'),
+    h('h2', null, 'Synthèse'),
+    state.project && state.project.note ? h('p', { class: 'muted', style: 'margin:0' }, state.project.note) : null,
+    h('div', { class: 'stats' },
+      stat(state.tables.length, 'tables'), stat(nCols, 'colonnes'),
+      stat(state.refs.length, 'références'), stat(state.groups.length, 'groupes')),
+    issues.length ? [h('span', { class: 'label' }, 'Avertissements'), h('ul', { class: 'issues' }, issues.map(i => h('li', null, i)))] : null);
+}
+
+function renderAll() {
+  renderHeader();
+  renderToolbar();
+  renderGraph();
+  renderDetail();
+}
+
+load();
+renderAll();
+</script>
+</body>
+</html>
