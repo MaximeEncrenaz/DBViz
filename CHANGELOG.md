@@ -5,6 +5,7 @@ Format inspiré de [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/).
 ## [Non publié]
 
 ### Ajouté
+- Masquer / afficher des tables du graphe : cases à cocher par table dans « Filtres » (avec « Tout afficher »), bouton « Masquer » / « Afficher » dans le détail d'une table, touche H sur la table sélectionnée. Réglage d'affichage, permis en lecture seule ; centrer une table masquée la ré-affiche.
 - Choix du thème dans le bandeau : celui du système (par défaut), clair ou sombre, retenu par le navigateur.
 - Bouton « Éclater » dans la barre d'outils du graphe : cartes plus espacées, rangées pour limiter les croisements, et flèches courbées pour ne plus passer derrière une carte, sur toutes les scènes. Actif par défaut ; un clic revient à la mise en page compacte.
 - Vue graphe : plan d'ensemble par groupe de tables, focus sur une table (lecture de gauche à droite, clés étrangères à gauche, tables référencées à droite), focus sur un groupe, constellations par groupe pour un schéma. Cartes en trois niveaux de détail, traits colorés par cardinalité, références réflexives en boucle, filtres, légende, recherche, zoom et transitions animées.

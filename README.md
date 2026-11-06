@@ -19,7 +19,7 @@ L'application tient dans un seul fichier, `index.html`, qui fonctionne **hors li
   - choix d'un schéma (si le modèle en compte plusieurs) : une constellation par groupe ;
   - cartes en trois niveaux de détail (**Toutes** les colonnes, par défaut, **Clés** : clés primaires et étrangères, **Titre** seul) ;
   - traits colorés selon la cardinalité (N:1, 1:1, N:N), en tirets pour une clé étrangère facultative ; étiquettes au choix : colonnes reliées, noms des références, aucune ;
-  - filtres par cardinalité et par groupe, légende, recherche d'une table (touche **/**), zoom à la molette, transitions animées entre les vues.
+  - filtres par cardinalité, par groupe et par table (masquer / afficher une table, touche **H**), légende, recherche d'une table (touche **/**), zoom à la molette, transitions animées entre les vues.
 - **Panneau de détail** : colonnes d'une table avec leurs propriétés, clés étrangères et tables qui la référencent, détail d'une référence ou d'un groupe ; synthèse du modèle sans sélection.
 - **Onglet DBML** : le modèle en texte, à copier ; en mode édition, modifiable et appliqué par **Appliquer** (ou Ctrl+Entrée), l'erreur éventuelle étant signalée avec sa ligne.
 - **Import DBML** : `Project`, `Table` (schéma, alias, couleur, notes, réglages de colonnes, index), `Ref` (autonomes, en bloc ou en ligne, composites, actions `delete` / `update`), `Enum`, `TableGroup`, `Note`. Une erreur de syntaxe est signalée avec son numéro de ligne ; les références vers une table ou une colonne inconnue sont écartées et listées dans la synthèse. Détails : [docs/format-dbml.md](docs/format-dbml.md).

@@ -101,6 +101,12 @@ details.pop > summary::-webkit-details-marker { display: none; }
 details.pop[open] > summary { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); }
 .pop-panel { position: absolute; top: calc(100% + 6px); left: 0; z-index: 10; min-width: 230px; padding: 10px 12px; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; box-shadow: 0 8px 24px rgba(0, 0, 0, .16); display: grid; gap: 6px; }
 .pop-panel label { display: flex; align-items: center; gap: 8px; cursor: pointer; font-size: 12.5px; }
+.pop-panel label.muted { opacity: .55; }
+.pop-scroll { display: grid; gap: 6px; max-height: 240px; overflow-y: auto; padding-right: 4px; }
+.pop-row { display: flex; align-items: center; gap: 8px; }
+.pop-row .link { margin-left: auto; }
+.link { background: none; border: 0; padding: 0; color: var(--accent); font: inherit; font-size: 12px; font-weight: 500; letter-spacing: 0; text-transform: none; cursor: pointer; }
+.link:hover { text-decoration: underline; }
 .legend-row { display: flex; align-items: center; gap: 10px; font-size: 12.5px; }
 .legend-row svg { flex: none; }
 
@@ -295,6 +301,7 @@ const ui = {
   spread: true,         // graphe éclaté (par défaut) : cartes espacées, croisements réduits, traits qui contournent les cartes
   hideRel: new Set(),   // cardinalités masquées
   hideGroups: new Set(),// groupes masqués ('' = tables sans groupe)
+  hideTables: new Set(),// tables masquées (clés)
   tab: 'detail',
   srcDraft: null,       // texte DBML en cours de saisie dans l'onglet DBML
   srcError: '',
@@ -742,7 +749,7 @@ const groupName = key => groupOf(key)?.name || '';
 const groupColor = g => (g ? g.color || GROUP_PALETTE[state.groups.indexOf(g) % GROUP_PALETTE.length] : NEUTRAL);
 const tableColor = t => { const g = groupOf(tableKey(t)); return g ? groupColor(g) : t.color || NEUTRAL; };
 const groupIndex = key => { const i = state.groups.findIndex(g => g.tables.includes(key)); return i < 0 ? 999 : i; };
-const tableVisible = key => !ui.hideGroups.has(groupName(key));
+const tableVisible = key => !ui.hideTables.has(key) && !ui.hideGroups.has(groupName(key));
 const relOf = r => RELS[r.rel] || RELS['>'];
 const refById = id => state.refs.find(r => r.id === id);
 const refsOf = key => state.refs.filter(r => r.from.table === key || r.to.table === key);
@@ -803,6 +810,7 @@ function cleanUi() {
   if (ui.focus && !tableByKey(ui.focus)) ui.focus = null;
   if (ui.group && !groupByName(ui.group)) ui.group = '';
   if (ui.schema && !schemas().includes(ui.schema)) ui.schema = '';
+  for (const k of ui.hideTables) if (!tableByKey(k)) ui.hideTables.delete(k);
   const sel = ui.selected;
   if (sel && !(sel.type === 'table' ? tableByKey(sel.id) : sel.type === 'ref' ? refById(sel.id) : groupByName(sel.id))) ui.selected = null;
 }
@@ -871,6 +879,7 @@ function select(sel) {
 }
 function focusTable(key) {
   if (!tableByKey(key)) return;
+  ui.hideTables.delete(key); // centrer une table masquée la ré-affiche
   ui.focus = key;
   ui.selected = { type: 'table', id: key };
   renderAll();
@@ -879,6 +888,19 @@ function showGroup(name) {
   ui.focus = null;
   ui.group = name;
   ui.selected = name ? { type: 'group', id: name } : null;
+  renderAll();
+}
+// Masquer une table est un réglage d'affichage : permis en lecture seule, non enregistré avec le modèle.
+function setTableHidden(key, hidden) {
+  if (!tableByKey(key)) return;
+  if (hidden) {
+    ui.hideTables.add(key);
+    if (ui.focus === key) ui.focus = null;
+  } else ui.hideTables.delete(key);
+  renderAll();
+}
+function showAllTables() {
+  ui.hideTables.clear();
   renderAll();
 }
 function backToPlan() {
@@ -1590,7 +1612,7 @@ function applyHighlight() {
     rids = new Set();
     for (const r of scene.refs) if (seed.includes(r.from.table) || seed.includes(r.to.table)) { rids.add(r.id); tks.add(r.from.table); tks.add(r.to.table); }
   };
-  if (sel?.type === 'table') around([sel.id]);
+  if (sel?.type === 'table') { if (scene.nodes.some(n => n.tk === sel.id)) around([sel.id]); }
   else if (sel?.type === 'group') around(groupByName(sel.id)?.tables || []);
   else if (sel?.type === 'ref') {
     const r = refById(sel.id);
@@ -1736,6 +1758,7 @@ function moveTableKey(oldKey, newKey) {
   if (planPos.has(oldKey)) { planPos.set(newKey, planPos.get(oldKey)); planPos.delete(oldKey); }
   if (ui.focus === oldKey) ui.focus = newKey;
   if (ui.selected?.type === 'table' && ui.selected.id === oldKey) ui.selected.id = newKey;
+  if (ui.hideTables.delete(oldKey)) ui.hideTables.add(newKey);
 }
 
 function removeTable(key) {
@@ -2110,6 +2133,8 @@ function legendSwatch(rel, dashed) {
 
 function renderToolbar() {
   const groups = [...state.groups.map(g => g.name), ...(state.tables.some(t => !groupOf(tableKey(t))) ? [''] : [])];
+  const nHidden = ui.hideRel.size + ui.hideGroups.size + ui.hideTables.size;
+  const tableKeys = state.tables.map(tableKey).sort((a, b) => groupIndex(a) - groupIndex(b) || a.localeCompare(b));
   fill($('toolbar'),
     h('span', { class: 'tool-label' }, 'Cartes'),
     seg([['all', 'Toutes', 'Toutes les colonnes'], ['keys', 'Clés', 'Clés primaires et étrangères'], ['none', 'Titre', 'Nom de la table seulement']], ui.cards,
@@ -2118,7 +2143,7 @@ function renderToolbar() {
     seg([['cols', 'Colonnes', 'Colonnes reliées à chaque bout'], ['names', 'Noms', 'Nom de la référence ou cardinalité'], ['none', 'Aucune']], ui.labels,
       v => { ui.labels = v; renderAll(); }),
     h('details', { class: 'pop' },
-      h('summary', { class: 'btn small' }, 'Filtres' + (ui.hideRel.size + ui.hideGroups.size ? ` · ${ui.hideRel.size + ui.hideGroups.size}` : '')),
+      h('summary', { class: 'btn small' }, 'Filtres' + (nHidden ? ` · ${nHidden}` : '')),
       h('div', { class: 'pop-panel' },
         h('span', { class: 'label' }, 'Cardinalités'),
         Object.entries(RELS).map(([k, v]) => h('label', {},
@@ -2127,7 +2152,12 @@ function renderToolbar() {
         groups.length ? h('span', { class: 'label' }, 'Groupes') : null,
         groups.map(name => h('label', {},
           h('input', { type: 'checkbox', checked: !ui.hideGroups.has(name), onchange: e => { e.target.checked ? ui.hideGroups.delete(name) : ui.hideGroups.add(name); cleanUi(); renderAll(); reopen('Filtres'); } }),
-          h('span', { class: 'swatch', style: `background:${groupColor(groupByName(name))}` }), h('span', { class: 'mono' }, name || 'sans groupe'))))),
+          h('span', { class: 'swatch', style: `background:${groupColor(groupByName(name))}` }), h('span', { class: 'mono' }, name || 'sans groupe'))),
+        tableKeys.length ? h('span', { class: 'label pop-row' }, `Tables · ${tableKeys.length - ui.hideTables.size}/${tableKeys.length}`,
+          ui.hideTables.size ? h('button', { class: 'link', type: 'button', onclick: () => { showAllTables(); reopen('Filtres'); } }, 'Tout afficher') : null) : null,
+        tableKeys.length ? h('div', { class: 'pop-scroll' }, tableKeys.map(k => h('label', { class: ui.hideGroups.has(groupName(k)) ? 'muted' : null, title: ui.hideGroups.has(groupName(k)) ? 'Son groupe est masqué' : null },
+          h('input', { type: 'checkbox', checked: !ui.hideTables.has(k), onchange: e => { setTableHidden(k, !e.target.checked); reopen('Filtres'); } }),
+          h('span', { class: 'swatch', style: `background:${tableColor(tableByKey(k))}` }), h('span', { class: 'mono' }, k)))) : null)),
     h('details', { class: 'pop' },
       h('summary', { class: 'btn small' }, 'Légende'),
       h('div', { class: 'pop-panel' },
@@ -2173,7 +2203,9 @@ function renderDetail() {
     const incoming = state.refs.filter(r => r.to.table === key && r.from.table !== key);
     fill(pane,
       h('div', { class: 'dhead' }, h('span', { class: 'swatch', style: `background:${tableColor(t)}` }), h('h2', { class: 'grow' }, key),
+        h('button', { class: 'btn small', type: 'button', onclick: () => setTableHidden(key, !ui.hideTables.has(key)), title: (ui.hideTables.has(key) ? 'Afficher' : 'Masquer') + ' la table dans le graphe  (H)' }, ui.hideTables.has(key) ? 'Afficher' : 'Masquer'),
         ui.focus !== key ? h('button', { class: 'btn small', type: 'button', onclick: () => focusTable(key) }, 'Centrer') : null),
+      ui.hideTables.has(key) ? h('p', { class: 'hint' }, 'Table masquée dans le graphe.') : ui.hideGroups.has(groupName(key)) ? h('p', { class: 'hint' }, 'Table masquée avec son groupe (Filtres).') : null,
       h('div', { class: 'keys' },
         h('span', {}, 'Groupe'),
         g ? h('span', {}, h('button', { class: 'btn small', type: 'button', onclick: () => showGroup(g.name), title: 'Voir le groupe' }, h('span', { class: 'swatch', style: `background:${groupColor(g)}` }), g.name)) : h('span', { class: 'mono' }, '—'),
@@ -2229,7 +2261,7 @@ function renderDetail() {
       h('div', { class: 'keys' }, h('span', {}, 'Références internes'), h('span', { class: 'mono' }, inner), h('span', {}, 'Vers d’autres groupes'), h('span', { class: 'mono' }, outer)),
       h('span', { class: 'label' }, `Tables · ${g.tables.length}`),
       h('div', { class: 'list' }, g.tables.map(k => h('div', { class: 'row', onclick: () => focusTable(k) },
-        h('span', { class: 'mono grow' }, k), h('span', { class: 'muted' }, plural(tableByKey(k).columns.length, 'col.', 'col.'))))));
+        h('span', { class: 'mono grow' + (ui.hideTables.has(k) ? ' muted' : '') }, k, ui.hideTables.has(k) ? ' · masquée' : ''), h('span', { class: 'muted' }, plural(tableByKey(k).columns.length, 'col.', 'col.'))))));
     return;
   }
   // Synthèse, sans sélection.
@@ -2255,6 +2287,7 @@ function renderDetail() {
     h('div', { class: 'keys' },
       h('kbd', {}, 'E'), h('span', {}, 'lecture seule / édition'),
       h('kbd', {}, '/'), h('span', {}, 'aller à une table'),
+      h('kbd', {}, 'H'), h('span', {}, 'masquer / afficher la table sélectionnée'),
       h('kbd', {}, 'Échap'), h('span', {}, 'désélectionner, puis plan d’ensemble'),
       h('kbd', {}, 'Ctrl+Z'), h('span', {}, 'annuler (édition)'),
       h('kbd', {}, 'Molette'), h('span', {}, 'zoom')));
@@ -2322,6 +2355,11 @@ document.addEventListener('keydown', e => {
   }
   if (e.key.toLowerCase() === 'z' && (e.ctrlKey || e.metaKey) && !e.shiftKey && ui.edit && !typing(e)) { e.preventDefault(); undo(); return; }
   if (e.key === '/' && !typing(e)) { e.preventDefault(); $('search')?.focus(); return; }
+  if (e.key.toLowerCase() === 'h' && !e.ctrlKey && !e.metaKey && !e.altKey && !e.repeat && !typing(e) && ui.selected?.type === 'table') {
+    e.preventDefault();
+    setTableHidden(ui.selected.id, !ui.hideTables.has(ui.selected.id));
+    return;
+  }
   if (e.key !== 'Escape') return;
   const open = $('toolbar').querySelector('details[open]');
   if (open) { open.open = false; return; }
